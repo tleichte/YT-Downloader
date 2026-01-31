@@ -1,0 +1,14 @@
+{
+  "BotToken": "TOKEN",
+  "BotOwnerId": 0,
+
+  "DatabasePath": "",
+  "QueueTempPath": "",
+
+  "DiskUrlPrefix": "",
+  "ServerUrlPrefix": "",
+  
+  "NamedPipeName": "",
+
+  "ThrottleRetryTime": 60
+}

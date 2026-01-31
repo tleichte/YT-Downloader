@@ -1,62 +1,53 @@
 ﻿// namespace Common;
 
+using Common.DatabaseSchemas;
+using Newtonsoft.Json;
+
 namespace Common;
 
-public class Config
+public enum QueueStatus
 {
-    public static Config Current { get; set; }
-    
-    public string Token;
-    public ulong OwnerId;
-
-    public string DatabasePath;
-    public string QueueFolderPath;
+    Queued,
+    Downloading,
+    Copying,
+    Throttled,
 }
 
+public enum AddToQueueFailReason
+{
+    None,
+    FailedDb,
+    PipeFail
+}
 
-public struct Result
+public static class Result
+{
+    public static Result<TFail> MakeSuccess<TFail>() where TFail : struct
+    {
+        return new Result<TFail>
+        {
+            Success = true,
+            FailValue = default
+        };
+    }
+    
+    public static Result<TFail> MakeFail<TFail>(TFail failValue) where TFail : struct
+    {
+        return new Result<TFail>
+        {
+            Success = false,
+            FailValue = failValue
+        };
+    }
+}
+
+public struct Result<TFail> where TFail : struct
 {
     public bool Success;
-    public string FailReason;
-
-    public static implicit operator bool(Result result)
+    public TFail FailValue;
+    
+    public static implicit operator bool(Result<TFail> result)
     {
         return result.Success;
     }
-    
-    public static Result MakeSuccess()
-    {
-        return new Result
-        {
-            Success = true,
-            FailReason = ""
-        };
-    }
-
-    public static Result MakeFail(string reason)
-    {
-        return new Result
-        {
-            Success = false,
-            FailReason = reason
-        };
-    }
-}
-
-
-
-public struct QueueEntry
-{
-    public string Name;
-    public string Url;
-    public bool Persistent;
-}
-
-public struct LinkEntry
-{
-    public string Name;
-    public string Url;
-    public string DiskUrl;
-    public bool Persistent;
-    public DateTime DeleteAfter;
 }

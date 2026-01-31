@@ -4,26 +4,24 @@ using Common;
 using DSharpPlus;
 using DSharpPlus.SlashCommands;
 using DSharpPlus.Entities;
-using Newtonsoft.Json;
 using YT_Downloader_DiscordBot;
 
-// Read Config
-JsonConvert.DeserializeObject<Config>(File.ReadAllText("config.json"));
 
-string TOKEN = "TODO";
+Config.Create();
 
 DiscordConfiguration config = new()
 {
-    Token = TOKEN,
+    Token = Config.Current.BotToken,
     Intents = DiscordIntents.AllUnprivileged,
 };
 
+
 DiscordClient client = new(config);
 
-var slash = client.UseSlashCommands();
+SlashCommandsExtension slash = client.UseSlashCommands();
 slash.RegisterCommands<SlashCommands>();
 
-DiscordActivity status = new("with myself", ActivityType.Playing);
+DiscordActivity status = new("Give me links :>", ActivityType.Custom);
 
 await client.ConnectAsync(status, UserStatus.Online);
 
