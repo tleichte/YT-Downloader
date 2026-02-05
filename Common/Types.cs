@@ -1,9 +1,4 @@
-﻿// namespace Common;
-
-using Common.DatabaseSchemas;
-using Newtonsoft.Json;
-
-namespace Common;
+﻿namespace Common;
 
 public enum QueueStatus
 {
@@ -18,6 +13,15 @@ public enum AddToQueueFailReason
     None,
     FailedDb,
     PipeFail
+}
+
+
+public enum DownloadFailReason
+{
+    None,
+    VideoFetchError,
+    VideoDownloadError,
+    ResolutionMismatch
 }
 
 public static class Result
@@ -50,15 +54,4 @@ public struct Result<TFail> where TFail : struct
     {
         return result.Success;
     }
-}
-
-
-
-
-public struct QueueUpdatePayload
-{
-    public ulong UserId;
-    public ulong MessageId;
-    public int Percent;
-    
 }

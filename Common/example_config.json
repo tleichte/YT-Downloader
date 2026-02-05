@@ -10,8 +10,8 @@
   "DiskUrlPrefix": "",
   "ServerUrlPrefix": "",
 
-  "NamedPipeQueueName": "YT-Downloader-Queue-Pipe",
-  "NamedPipeMessageUpdateName": "YT-Downloader-MessageUpdate-Pipe",
+  "NamedPipeQueue": "YT-Downloader-Queue-Pipe",
+  "NamedPipeDownloadResult": "YT-Downloader-DownloadResult-Pipe",
 
   "ThrottleRetryTime": 60,
 

@@ -21,15 +21,15 @@ public struct Config
     public ulong BotOwnerId;                        // The owner ID for the discord bot
 
     public string DatabasePath;                     // The path to where the database file is stored
-    public string QueueTempPath;                    // The path to where temporary youtube download files are stored 
+    public string TempDownloadsPath;                // The path to where temporary youtube download files are stored 
 
     public string CookiesPath;                      // The path to the cookies file for yt-dlp
     
     public string DiskUrlPrefix;                    // The prefix to use for the on-disk URL
     public string ServerUrlPrefix;                  // The prefix to use for the server URL
     
-    public string NamedPipeQueueName;               // The name of the IPC pipe to communicate initial queueing 
-    public string NamedPipeMessageUpdateName;       // The name of the IPC pipe to communicate status message updates
+    public string NamedPipeQueue;                   // The name of the IPC pipe to communicate initial queueing 
+    public string NamedPipeDownloadResult;          // The name of the IPC pipe to communicate status message updates
     
     public int ThrottleRetryTime;                   // The amount of time in minutes before retrying to download when throttled by Youtube
 

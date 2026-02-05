@@ -1,7 +1,10 @@
-﻿using DSharpPlus;
+﻿using Common;
+using Common.DatabaseSchemas;
+using DSharpPlus;
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using YT_Downloader_DiscordBot.Pipes;
 
 namespace YT_Downloader_DiscordBot;
 
@@ -22,11 +25,16 @@ public class BotWorker : BackgroundService
     {
         await m_client.ConnectAsync();
 
+        var downloadResultServer = new DownloadResultPipeServer();
+        downloadResultServer.Start();
+        
         while (!stoppingToken.IsCancellationRequested)
         {
+
+            await BotHelpers.TryUpdateQueueMessage(m_client);
+            await BotHelpers.CheckForDownloadResults(m_client);
             
-            
-            await Task.Delay(1000, stoppingToken);
+            await Task.Delay(5000, stoppingToken);
         }
         
         await m_client.DisconnectAsync();

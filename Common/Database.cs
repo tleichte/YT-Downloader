@@ -25,6 +25,8 @@ public class Database
         Instance = new Database(Config.Current.DatabasePath);
         Instance.InitializeDb();
     }
+
+    public readonly Mutex Mutex = new();
     
     private readonly SqliteConnection m_connection;
 

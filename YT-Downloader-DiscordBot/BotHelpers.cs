@@ -6,6 +6,7 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
+using YT_Downloader_DiscordBot.Pipes;
 
 namespace YT_Downloader_DiscordBot;
 
@@ -79,89 +80,53 @@ public static class BotHelpers
     }
     
     
-    public static async Task UpdateQueueMessage(DiscordClient client, ulong userId, string name)
+    public static async Task TryUpdateQueueMessage(DiscordClient client)
     {
-        QueueSchema.Entry? entry = await Database.Instance.QueueSchema.GetEntryForName(userId, name);
-        if (entry == null)
+        QueueSchema.Entry? entry = await Database.Instance.QueueSchema.GetFirstEntry();
+        if (entry == null || entry.Value.Status == QueueStatus.Queued)
         {
             return;
         }
         
-        DiscordUser user = await client.GetUserAsync(userId);
+        DiscordUser user = await client.GetUserAsync(entry.Value.UserId);
         DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
         DiscordMessage message = await dmChannelAsync.GetMessageAsync(entry.Value.MessageId);
         
-        var builder = new StringBuilder();
-
+        string messageString = GetQueueMessage(entry.Value);
         
-        await message.ModifyAsync(builder.ToString());
-    }
-    
-    
-    public static void CreateMessageUpdatePipeServer()
-    {
-        Task.Run(async () =>
-        {
-            var server = new NamedPipeServerStream(Config.Current.NamedPipeQueueName, PipeDirection.In);
-            while (true)
-            {
-                try
-                {
-                    await server.WaitForConnectionAsync();
-                    var reader = new StreamReader(server);
-                    var writer = new StreamWriter(server);
-                    
-                    string? line = await reader.ReadLineAsync();
-                    if (line == null)
-                    {
-                        continue;
-                    }
-                    
-                    
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                    throw;
-                }
-                
-            }
-        });
+        await message.ModifyAsync(messageString);
     }
 
-    public static async ValueTask<Result<AddToQueueFailReason>> SendQueueEntry(QueueSchema.Entry entry)
+    public static async Task CheckForDownloadResults(DiscordClient client)
     {
-        var client =
-            new NamedPipeClientStream(".", Config.Current.NamedPipeQueueName, PipeDirection.InOut, PipeOptions.None);
-        if (!client.IsConnected)
+        while (!DownloadResultPipeServer.Queue.IsEmpty)
         {
-            await client.ConnectAsync();
+            DownloadResultPipeServer.Queue.TryDequeue(out DownloadResultPipeMessage downloadResult);
+            await UpdateResultMessage(client, downloadResult);
+        }
+    }
+
+    public static async Task UpdateResultMessage(DiscordClient client, DownloadResultPipeMessage downloadResult)
+    {
+        LinksSchema.Entry? entry = await Database.Instance.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
+        if (entry == null)
+        {
+            return;
         }
 
-        var reader = new StreamReader(client);
-        var writer = new StreamWriter(client);
-
-        try
+        LinkMetadataSchema.Entry? metadata =
+            await Database.Instance.LinkMetadataSchema.GetMetadataForVideo(entry.Value.VideoId);
+        if (metadata == null)
         {
-            await writer.WriteLineAsync(JsonConvert.SerializeObject(entry));
-            await writer.FlushAsync();
-            
-            // Only runnable on windows, disabling warning
-#pragma warning disable CA1416
-            client.WaitForPipeDrain();
-#pragma warning restore CA1416
-
-            string? line = await reader.ReadLineAsync();
-            if (line != null)
-            {
-                return JsonConvert.DeserializeObject<Result<AddToQueueFailReason>>(line);
-            }
+            return;
         }
-        catch (Exception e)
-        {
-            // passthrough
-        }
-
-        return Result.MakeFail(AddToQueueFailReason.PipeFail);
+        
+        DiscordUser user = await client.GetUserAsync(entry.Value.UserId);
+        DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
+        DiscordMessage message = await dmChannelAsync.GetMessageAsync(entry.Value.MessageId);
+        
+        string messageString = GetLinkMessageString(entry.Value, metadata.Value);
+        
+        await message.ModifyAsync(messageString);
     }
 }

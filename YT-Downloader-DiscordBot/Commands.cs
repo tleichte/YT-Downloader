@@ -5,6 +5,7 @@ using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Entities;
 using Newtonsoft.Json;
+using YT_Downloader_DiscordBot.Pipes;
 
 namespace YT_Downloader_DiscordBot;
 
@@ -41,26 +42,35 @@ public class Commands
         string preQueueMessage = $"Adding {url} to queue...";
         DiscordMessage message = await ctx.EditResponseAsync(preQueueMessage);
         
-        // Send queue entry to worker
-        QueueSchema.Entry entry = new()
+        try
         {
-            UserId = userId,
-            Name = name,
-            Url = url,
-            MessageId = message.Id,
-            Persistent = persistent,
-            Status = QueueStatus.Queued
-        };
-        Result<AddToQueueFailReason> result = await BotHelpers.SendQueueEntry(entry);
-
-        if (result.Success)
-        {
-            var response = $"Status: Added to queue.";
-            await message.ModifyAsync(response);
+            // Send queue entry to worker
+            QueueSchema.Entry entry = new()
+            {
+                UserId = userId,
+                Name = name,
+                Url = url,
+                MessageId = message.Id,
+                Persistent = persistent,
+                Status = QueueStatus.Queued
+            };
+            
+            Result<AddToQueueFailReason> result = await new QueuePipeClient().Send(entry);
+            
+            if (result.Success)
+            {
+                var response = $"Status: Added to queue.";
+                await message.ModifyAsync(response);
+            }
+            else
+            {
+                var response = $"Something went wrong while adding to queue! (Reason: {result.FailValue.ToString()})";
+                await ctx.EditResponseAsync(response);
+            }
         }
-        else
+        catch (Exception)
         {
-            var response = $"Something went wrong while adding to queue! (Reason: {result.FailValue.ToString()})";
+            var response = "Something went wrong while adding to queue!";
             await ctx.EditResponseAsync(response);
         }
     }

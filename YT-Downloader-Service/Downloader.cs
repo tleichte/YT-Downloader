@@ -10,22 +10,11 @@ namespace YT_Downloader_Service;
 
 public class Downloader
 {
-    private string m_outputFolderPath;
-    private string m_cookiesPath;
-
     private const string FormatString = "best[height<=1080]";
 
     private string GetVideoId(VideoData videoData)
     {
         return $"{videoData.Extractor}-{videoData.ID}";
-    }
-
-    public enum DownloadFailReason
-    {
-        None,
-        VideoFetchError,
-        VideoDownloadError,
-        ResolutionMismatch
     }
 
     public struct VideoDownloadResult
@@ -58,10 +47,12 @@ public class Downloader
     public async ValueTask<VideoDownloadResult> RunDownload(string url, CancellationToken cancellationToken)
     {
 
-        var ytDL = new YoutubeDL();
-        ytDL.OutputFolder = m_outputFolderPath;
-        
-        var dataResult = await ytDL.RunVideoDataFetch(url, ct:cancellationToken);
+        var ytDl = new YoutubeDL
+        {
+            OutputFolder = Config.Current.TempDownloadsPath
+        };
+
+        var dataResult = await ytDl.RunVideoDataFetch(url, ct:cancellationToken);
         if (!dataResult.Success)
         {
             return VideoDownloadResult.MakeFail(DownloadFailReason.VideoFetchError);
@@ -87,11 +78,10 @@ public class Downloader
             RestrictFilenames = true,
             RecodeVideo = VideoRecodeFormat.Mp4,
             Format = FormatString,
-            Cookies = m_cookiesPath,
-            Paths = Config.Current.QueueTempPath
+            Cookies = Config.Current.CookiesPath,
         };
         
-        RunResult<string>? res = await ytDL.RunVideoDownload(url, overrideOptions: options, ct: cancellationToken);
+        RunResult<string>? res = await ytDl.RunVideoDownload(url, overrideOptions: options, ct: cancellationToken);
         if (!res.Success)
         {
             string[] errorOutput = res.ErrorOutput;
