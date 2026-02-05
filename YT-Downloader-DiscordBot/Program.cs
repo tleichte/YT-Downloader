@@ -2,27 +2,26 @@
 
 using Common;
 using DSharpPlus;
-using DSharpPlus.SlashCommands;
-using DSharpPlus.Entities;
+using DSharpPlus.Commands;
+using DSharpPlus.Extensions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using YT_Downloader_DiscordBot;
 
 
 Config.Create();
 
-DiscordConfiguration config = new()
-{
-    Token = Config.Current.BotToken,
-    Intents = DiscordIntents.AllUnprivileged,
-};
-
-
-DiscordClient client = new(config);
-
-SlashCommandsExtension slash = client.UseSlashCommands();
-slash.RegisterCommands<SlashCommands>();
-
-DiscordActivity status = new("Give me links :>", ActivityType.Custom);
-
-await client.ConnectAsync(status, UserStatus.Online);
+await Host.CreateDefaultBuilder()
+    .UseConsoleLifetime()
+    .ConfigureServices((hostContext, services) =>
+    {
+        services.AddHostedService<BotWorker>();
+        services.AddDiscordClient(Config.Current.BotToken, DiscordIntents.AllUnprivileged);    
+        services.AddCommandsExtension((provider, extension) =>
+        {
+            extension.AddCommands<Commands>();
+        });
+    })
+    .RunConsoleAsync();
 
 await Task.Delay(-1);

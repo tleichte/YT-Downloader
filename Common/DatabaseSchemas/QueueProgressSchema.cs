@@ -15,8 +15,9 @@ public class QueueProgressSchema : DatabaseSchema<QueueProgressSchema.Entry>
     }
 
     public override string CreateTableCommand { get; }
-    public override string InsertCommand { get; }
-    public override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
+    protected override string InsertCommand { get; }
+
+    protected override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
     {
         throw new NotImplementedException();
     }

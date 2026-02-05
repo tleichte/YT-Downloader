@@ -51,3 +51,14 @@ public struct Result<TFail> where TFail : struct
         return result.Success;
     }
 }
+
+
+
+
+public struct QueueUpdatePayload
+{
+    public ulong UserId;
+    public ulong MessageId;
+    public int Percent;
+    
+}

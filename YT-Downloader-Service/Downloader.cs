@@ -73,6 +73,8 @@ public class Downloader
         {
             VideoId = videoId,
             VideoTitle = dataResult.Data.Title,
+            VideoAuthor = dataResult.Data.Channel,
+            OriginalUrl = url,
             Duration = dataResult.Data.Duration.GetValueOrDefault(0)
         };
         

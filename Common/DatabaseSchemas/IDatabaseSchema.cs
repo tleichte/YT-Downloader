@@ -38,10 +38,10 @@ public abstract class DatabaseSchema<T> where T : struct
     }
 
     public abstract string CreateTableCommand { get; }
-    public abstract string InsertCommand { get; }
-    public abstract void AddInsertParameters(SqliteParameterCollection parameters, T entry);
+    protected abstract string InsertCommand { get; }
+    protected abstract void AddInsertParameters(SqliteParameterCollection parameters, T entry);
 
-    public async Task ExecuteInsert(T entry)
+    public async Task AddEntry(T entry)
     {
         await using var command = new SqliteCommand(InsertCommand, m_connection);
         AddInsertParameters(command.Parameters, entry);

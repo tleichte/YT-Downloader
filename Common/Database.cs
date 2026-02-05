@@ -81,7 +81,7 @@ public class Database
         LinksSchema.Entry[] remainingEntries = await LinksSchema.GetEntriesForVideoId(videoId);
         if (remainingEntries.Length == 0)
         {
-            LinkMetadataSchema.RemoveLinkEntry(videoId);
+            await LinkMetadataSchema.RemoveLinkEntry(videoId);
         }
     }
 }

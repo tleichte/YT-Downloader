@@ -9,6 +9,7 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
         public ulong UserId;
         public string Name;
         public string VideoId;
+        public ulong MessageId;
         public DateTime DeleteAfter;
     }
 
@@ -21,21 +22,25 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
                                                      user_id TEXT,
                                                      name TEXT,
                                                      video_id TEXT,
+                                                     message_id TEXT,
                                                      delete_after INTEGER
                                                  )
                                                  PRIMARY KEY (user_id, LinkId)
                                                  """;
-    public override string InsertCommand => """
-                                         INSERT INTO Links
-                                             (user_id, name, video_id, delete_after)
-                                         values 
-                                             ($user_id, $name, $video_id, $delete_after)
-                                         """;
-    public override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
+
+    protected override string InsertCommand => """
+                                               INSERT INTO Links
+                                                   (user_id, name, video_id, message_id, delete_after)
+                                               values 
+                                                   ($user_id, $name, $video_id, $message_id, $delete_after)
+                                               """;
+
+    protected override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
     {
         parameters.AddULong("$user_id", entry.UserId);
         parameters.AddWithValue("$name", entry.Name);
         parameters.AddWithValue("$video_id", entry.VideoId);
+        parameters.AddWithValue("$message_id", entry.MessageId);
         parameters.AddWithValue("$delete_after", entry.DeleteAfter);
     }
 
@@ -44,6 +49,7 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
         UserId = reader.GetULong(reader.GetOrdinal("user_id")),
         Name = reader.GetString(reader.GetOrdinal("name")),
         VideoId = reader.GetString(reader.GetOrdinal("video_id")),
+        MessageId = reader.GetULong(reader.GetOrdinal("message_id")),
         DeleteAfter = reader.GetDateTime(reader.GetOrdinal("delete_after")),
     };
 

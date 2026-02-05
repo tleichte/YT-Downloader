@@ -1,26 +1,22 @@
-﻿using Common;
+﻿using System.ComponentModel;
+using Common;
 using Common.DatabaseSchemas;
+using DSharpPlus.Commands;
+using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Entities;
-using DSharpPlus.SlashCommands;
 using Newtonsoft.Json;
 
 namespace YT_Downloader_DiscordBot;
 
-public class SlashCommands : ApplicationCommandModule
+public class Commands
 {
-
-    private static async void Respond(InteractionContext ctx)
+    [Command("save")]
+    [Description("Saves a link to the server.")]
+    public async Task SaveCommand(SlashCommandContext ctx, string name, string url, bool persistent)
     {
-        // if (ctx.GetOriginalResponseAsync())
-    }
-
-    [SlashCommand("save", "Requests a link to be saved to the ")]
-    public async Task SaveCommand(InteractionContext ctx, string name, string url, bool persistent)
-    {
-        await ctx.DeferAsync();
+        await ctx.DeferResponseAsync();
 
         ulong userId = ctx.User.Id;
-        var guid = Guid.NewGuid();
         
         // Check if name already exists in queue
         QueueSchema.Entry? nameQueueEntry = await Database.Instance.QueueSchema.GetEntryForName(userId, name);
@@ -41,14 +37,17 @@ public class SlashCommands : ApplicationCommandModule
                 new DiscordWebhookBuilder().WithContent(response));
             return;
         }
+
+        string preQueueMessage = $"Adding {url} to queue...";
+        DiscordMessage message = await ctx.EditResponseAsync(preQueueMessage);
         
         // Send queue entry to worker
         QueueSchema.Entry entry = new()
         {
             UserId = userId,
-            LinkId = guid,
             Name = name,
             Url = url,
+            MessageId = message.Id,
             Persistent = persistent,
             Status = QueueStatus.Queued
         };
@@ -56,47 +55,39 @@ public class SlashCommands : ApplicationCommandModule
 
         if (result.Success)
         {
-            var response = $"Successfully added video to queue! You can check the status with `/status {name}`";
-            DiscordMessage? message = await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(response));
-            if (message != null)
-            {
-                
-            }
+            var response = $"Status: Added to queue.";
+            await message.ModifyAsync(response);
         }
         else
         {
             var response = $"Something went wrong while adding to queue! (Reason: {result.FailValue.ToString()})";
-            await ctx.EditResponseAsync(new DiscordWebhookBuilder().WithContent(response));
+            await ctx.EditResponseAsync(response);
         }
     }
 
-    [SlashCommand("status", "Check the status of a given name")]
-    public async Task StatusCommand(InteractionContext ctx, string name)
+    [Command("find")]
+    [Description("Finds the link for a given name. Will return multiple if query is similar.")]
+    public async Task FindCommand(SlashCommandContext ctx, string name)
     {
-        // Check queries db
-        ulong userId = ctx.User.Id;
-        await Database.Instance.QueueSchema.GetEntryForName(userId, name);
-        
-        // TODO respond accordingly
-    }
+        await ctx.DeferResponseAsync(ephemeral:true);
 
-    [SlashCommand("get", "Gets the link for a given name. Will return multiple if query is similar")]
-    public async Task GetCommand(InteractionContext ctx, string name)
-    {
+        var response = "";
         
+        await ctx.EditResponseAsync(response);
     }
 
 
-    [SlashCommand("bedtime", "[ADMIN] Shuts down the bot")]
-    public async Task BedtimeCommand(InteractionContext ctx)
+    [Command("bedtime")]
+    [Description("[ADMIN] Shuts down the bot")]
+    public async Task BedtimeCommand(SlashCommandContext ctx)
     {
         if (ctx.User.Id != Config.Current.BotOwnerId)
         {
-            await ctx.CreateResponseAsync("You're not the boss of me!");
+            await ctx.RespondAsync("You're not the boss of me!");
             return;
         }
         
-        await ctx.CreateResponseAsync(":wave:");
+        await ctx.RespondAsync(":wave:");
         ctx.Client.Dispose();
         Environment.Exit(0);
     }

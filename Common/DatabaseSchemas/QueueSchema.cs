@@ -11,51 +11,53 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
     public struct Entry
     {
         public ulong UserId;
-        public ulong MessageId;
-        public Guid LinkId;
         public string Name;
         public string Url;
+        public ulong MessageId;
         public bool Persistent;
         public QueueStatus Status;
+        public int Progress;
     }
 
     public override string CreateTableCommand => """
                                                  CREATE TABLE IF NOT EXISTS Queue (
                                                      user_id TEXT,
-                                                     link_id TEXT,
                                                      name TEXT,
                                                      url TEXT,
+                                                     message_id TEXT,
                                                      persistent INTEGER,
                                                      status INTEGER
                                                  )
-                                                 PRIMARY KEY (user_id, LinkId)
+                                                 PRIMARY KEY (user_id, name)
                                                  """;
 
-    public override string InsertCommand => """
-                                            INSERT INTO Queue 
-                                                 (user_id, link_id, name, url, persistent, status)
-                                            values 
-                                                ($user_id, $link_id, $name, $url, $persistent, $status)
-                                            """;
-    
-    public override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
+    protected override string InsertCommand => """
+                                               INSERT INTO Queue 
+                                                    (user_id, name, url, message_id, persistent, status, progress)
+                                               values 
+                                                   ($user_id, $name, $url, $message_id, $persistent, $status, $progress)
+                                               """;
+
+    protected override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
     {
         parameters.AddULong("$user_id", entry.UserId);
-        parameters.AddWithValue("$link_id", entry.LinkId);
         parameters.AddWithValue("$name", entry.Name);
         parameters.AddWithValue("$url", entry.Url);
+        parameters.AddULong("$message_id", entry.MessageId);
         parameters.AddWithValue("$persistent", entry.Persistent);
         parameters.AddWithValue("$status", (int)entry.Status);
+        parameters.AddWithValue("$progress", entry.Progress);
     }
 
     protected override Entry ParseEntry(SqliteDataReader reader) => new()
     {
         UserId = reader.GetULong(reader.GetOrdinal("user_id")),
-        LinkId = reader.GetGuid(reader.GetOrdinal("link_id")),
         Url = reader.GetString(reader.GetOrdinal("url")),
         Name = reader.GetString(reader.GetOrdinal("name")),
+        MessageId = reader.GetULong(reader.GetOrdinal("message_id")),
         Persistent = reader.GetBoolean(reader.GetOrdinal("persistent")),
-        Status = (QueueStatus)reader.GetInt32(reader.GetOrdinal("status"))
+        Status = (QueueStatus)reader.GetInt32(reader.GetOrdinal("status")),
+        Progress =  reader.GetInt32(reader.GetOrdinal("progress")),
     };
 
     public async ValueTask<Entry?> GetEntryForName(ulong userId, string name)
@@ -103,6 +105,20 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
                                """;
         await Execute(COMMAND, parameters =>
         {
+            parameters.AddWithValue("$status", (int)status);
+            parameters.AddULong("$user_id", userId);
+            parameters.AddWithValue("$name", name);
+        });
+    }
+
+    public async Task SetQueueProgress(ulong userId, string name, int progress)
+    {
+        const string COMMAND = """
+                               UPDATE Queue SET progress = $progress WHERE user_id = $user_id AND name = $name
+                               """;
+        await Execute(COMMAND, parameters =>
+        {
+            parameters.AddWithValue("$progress", progress);
             parameters.AddULong("$user_id", userId);
             parameters.AddWithValue("$name", name);
         });

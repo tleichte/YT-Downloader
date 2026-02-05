@@ -44,24 +44,32 @@ public class Worker : BackgroundService
         }
     }
 
-    private void TryRunDownload(QueueSchema.Entry entry, CancellationToken stoppingToken)
+    private void TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
     {
-        if (entry.Status == QueueStatus.Queued 
-            || (entry.Status == QueueStatus.Throttled && IsPastLastThrottleTime()))
+        if (queueEntry.Status == QueueStatus.Queued 
+            || (queueEntry.Status == QueueStatus.Throttled && IsPastLastThrottleTime()))
         {
             Task _ = Task.Run(async () =>
             {
                 var downloader = new Downloader();
-                Downloader.VideoDownloadResult result = await downloader.RunDownload(entry.Url, cancellationToken:stoppingToken);
+                Downloader.VideoDownloadResult result = await downloader.RunDownload(queueEntry.Url, cancellationToken:stoppingToken);
                 if (result.Result.Success)
                 {
-                    string moveToPath = Helpers.GetVideoDiskPath(entry.UserId, result.Metadata.VideoId);
+                    string moveToPath = Helpers.GetVideoDiskPath(queueEntry.UserId, result.Metadata.VideoId);
                     File.Move(result.Path, moveToPath);
                             
                     m_databaseMutex.WaitOne();
 
                     await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
-                            
+                    await Database.Instance.LinksSchema.AddEntry(new LinksSchema.Entry
+                    {
+                        UserId = queueEntry.UserId,
+                        Name = queueEntry.Name,
+                        VideoId = result.Metadata.VideoId,
+                        MessageId = queueEntry.MessageId,
+                        DeleteAfter = queueEntry.Persistent ? DateTime.MaxValue : DateTime.Now + TimeSpan.FromDays(Config.Current.ExpirationDays)
+                    });
+                    await Database.Instance.LinkMetadataSchema.AddEntry(result.Metadata);
                     m_databaseMutex.ReleaseMutex();
                 }
                 else
@@ -69,7 +77,7 @@ public class Worker : BackgroundService
                     if (result.Result.FailValue == Downloader.DownloadFailReason.VideoDownloadError)
                     {
                         m_lastThrottleTime = DateTime.Now;
-                        await Database.Instance.QueueSchema.SetQueueStatus(QueueStatus.Throttled, entry.UserId, entry.Name);
+                        await Database.Instance.QueueSchema.SetQueueStatus(QueueStatus.Throttled, queueEntry.UserId, queueEntry.Name);
                     }
                 }
             }, stoppingToken);
@@ -92,15 +100,16 @@ public class Worker : BackgroundService
         // Bot sends queue entry -> service adds to db queue -> service sends same queue entry back 
         Task.Run(async () =>
         {
-            var server = new NamedPipeServerStream(Config.Current.NamedPipeName, PipeDirection.InOut);
-            StreamWriter writer = new(server);
-            StreamReader reader = new(server);
+            var server = new NamedPipeServerStream(Config.Current.NamedPipeQueueName, PipeDirection.InOut);
             
             while (true)
             {
                 try
                 {
                     await server.WaitForConnectionAsync();
+                    
+                    StreamWriter writer = new(server);
+                    StreamReader reader = new(server);
                     string? line = await reader.ReadLineAsync();
                     if (line == null)
                     {
@@ -118,7 +127,7 @@ public class Worker : BackgroundService
                     
                     try
                     {
-                        await Database.Instance.QueueSchema.ExecuteInsert(entry.Value);
+                        await Database.Instance.QueueSchema.AddEntry(entry.Value);
                         result = Result.MakeSuccess<AddToQueueFailReason>();
                     }
                     catch (Exception)
@@ -149,4 +158,7 @@ public class Worker : BackgroundService
             }
         });
     }
+    
+    
+    
 }
