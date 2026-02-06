@@ -30,9 +30,10 @@ public class Database
     
     private readonly SqliteConnection m_connection;
 
-    private Database(string connectionString)
+    private Database(string dbFolderPath)
     {
-        m_connection = new SqliteConnection($@"Data Source={connectionString};");
+        Directory.CreateDirectory(dbFolderPath);
+        m_connection = new SqliteConnection($@"Data Source={dbFolderPath}\database.db;");
         m_connection.Open();
         
         QueueSchema = new QueueSchema(m_connection);

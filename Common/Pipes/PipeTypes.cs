@@ -1,7 +1,7 @@
 ﻿namespace Common;
 
 
-public struct DownloadResultPipeMessage
+public struct DownloadResult
 {
     public ulong UserId;
     public string Name;

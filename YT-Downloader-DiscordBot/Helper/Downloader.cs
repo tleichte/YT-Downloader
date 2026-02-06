@@ -1,7 +1,6 @@
 ﻿using System.Collections;
 using Common;
 using Common.DatabaseSchemas;
-using FFMpegCore;
 using YoutubeDLSharp;
 using YoutubeDLSharp.Metadata;
 using YoutubeDLSharp.Options;

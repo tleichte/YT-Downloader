@@ -4,7 +4,9 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using YT_Downloader_DiscordBot.BackgroundTasks;
 using YT_Downloader_DiscordBot.Pipes;
+using YT_Downloader_Service;
 
 namespace YT_Downloader_DiscordBot;
 
@@ -25,16 +27,16 @@ public class BotWorker : BackgroundService
     {
         await m_client.ConnectAsync();
 
-        var downloadResultServer = new DownloadResultPipeServer();
-        downloadResultServer.Start();
+        new QueueDownloaderBackgroundTask().Start(m_logger, stoppingToken);
+        new DeleteExpiredLinksBackgroundTask().Start(m_logger, stoppingToken);
         
         while (!stoppingToken.IsCancellationRequested)
         {
-
             await BotHelpers.TryUpdateQueueMessage(m_client);
             await BotHelpers.CheckForDownloadResults(m_client);
+            await BotHelpers.CheckForExpiredMessages(m_client);
             
-            await Task.Delay(5000, stoppingToken);
+            await Task.Delay(3000, stoppingToken); // Update messages max every 3 seconds
         }
         
         await m_client.DisconnectAsync();

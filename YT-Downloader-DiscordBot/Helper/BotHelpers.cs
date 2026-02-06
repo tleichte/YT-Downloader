@@ -6,6 +6,7 @@ using DSharpPlus;
 using DSharpPlus.Entities;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
+using YT_Downloader_DiscordBot.Helper;
 using YT_Downloader_DiscordBot.Pipes;
 
 namespace YT_Downloader_DiscordBot;
@@ -42,7 +43,7 @@ public static class BotHelpers
         return builder.ToString();
     }
 
-    public static string GetLinkFailedMessage(DownloadResultPipeMessage result)
+    public static string GetLinkFailedMessage(DownloadResult result)
     {
         var builder = new StringBuilder();
         builder.AppendLine($"## {result.Name}");
@@ -88,12 +89,12 @@ public static class BotHelpers
 
         builder.AppendLine($"`{metadata.OriginalUrl}`");
 
+        builder.AppendLine($"```{Helpers.GetServerUrl(entry.UserId, entry.VideoId)}```");
+        
         if (entry.DeleteAfter != DateTime.MaxValue)
         {
             builder.AppendLine($"Expires: <t:{(int)(entry.DeleteAfter - DateTime.UnixEpoch).TotalSeconds}:f>");
         }
-
-        builder.AppendLine($"```{Helpers.GetServerUrl(entry.UserId, entry.VideoId)}```");
         
         return builder.ToString();
     }
@@ -118,14 +119,14 @@ public static class BotHelpers
 
     public static async Task CheckForDownloadResults(DiscordClient client)
     {
-        while (!DownloadResultPipeServer.Queue.IsEmpty)
+        while (!AsyncQueues.Results.IsEmpty)
         {
-            DownloadResultPipeServer.Queue.TryDequeue(out DownloadResultPipeMessage downloadResult);
+            AsyncQueues.Results.TryDequeue(out DownloadResult downloadResult);
             await UpdateResultMessage(client, downloadResult);
         }
     }
 
-    public static async Task UpdateResultMessage(DiscordClient client, DownloadResultPipeMessage downloadResult)
+    public static async Task UpdateResultMessage(DiscordClient client, DownloadResult downloadResult)
     {
         DiscordUser user = await client.GetUserAsync(downloadResult.UserId);
         DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
@@ -154,6 +155,20 @@ public static class BotHelpers
             string messageString = GetLinkMessageString(entry.Value, metadata.Value);
             
             await message.ModifyAsync(messageString);
+        }
+    }
+
+    public static async Task CheckForExpiredMessages(DiscordClient client)
+    {
+        while (!AsyncQueues.ExpiredLinkMessages.IsEmpty)
+        {
+            AsyncQueues.ExpiredLinkMessages.TryDequeue(out LinkRemovedMessage removedMessage);
+            
+            DiscordUser user = await client.GetUserAsync(removedMessage.UserId);
+            DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
+            DiscordMessage message = await dmChannelAsync.GetMessageAsync(removedMessage.MessageId);
+
+            await message.DeleteAsync();
         }
     }
 }

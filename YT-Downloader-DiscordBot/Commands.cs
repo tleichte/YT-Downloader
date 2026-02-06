@@ -14,7 +14,7 @@ public class Commands
     [Command("save")]
     [Description("Saves a link to the server.")]
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
-    public async Task SaveCommand(SlashCommandContext ctx, string name, string url, bool persistent)
+    public async Task SaveCommand(SlashCommandContext ctx, string name, string url, bool persistent = false)
     {
         await ctx.DeferResponseAsync(true);
 
@@ -41,39 +41,24 @@ public class Commands
             return;
         }
 
-        try
+        Database.Instance.Mutex.WaitOne();
+
+        await Database.Instance.QueueSchema.AddEntry(new QueueSchema.Entry
         {
-            // Send queue entry to worker
-            QueueSchema.Entry entry = new()
-            {
-                UserId = userId,
-                Name = name,
-                Url = url,
-                MessageId = message.Id,
-                Persistent = persistent,
-                Status = QueueStatus.Queued,
-                Progress = ""
-            };
-            
-            Result<AddToQueueFailReason> result = await new QueuePipeClient().Send(entry);
-            
-            if (result.Success)
-            {
-                // This will send to queue
-                var response = $"Status: Added to queue.";
-                await message.ModifyAsync(response);
-            }
-            else
-            {
-                var response = $"Something went wrong while adding to queue! (Reason: {result.FailValue.ToString()})";
-                await message.ModifyAsync(response);
-            }
-        }
-        catch (Exception)
-        {
-            var response = "Something went wrong while adding to queue!";
-            await message.ModifyAsync(response);
-        }
+            UserId = userId,
+            Name = name,
+            Url = url,
+            MessageId = message.Id,
+            Persistent = persistent,
+            Status = QueueStatus.Queued,
+            Progress = ""
+        });
+        
+        Database.Instance.Mutex.ReleaseMutex();
+        
+        // This will send to queue
+        var successResponse = $"Status: Added `{url}` to queue.";
+        await message.ModifyAsync(successResponse);
         
         await ctx.DeleteResponseAsync();
     }

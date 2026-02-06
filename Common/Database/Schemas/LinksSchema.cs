@@ -73,7 +73,7 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
         const string COMMAND = """
                                         SELECT * FROM Links 
                                         WHERE
-                                            delete_after > $currentDate
+                                            delete_after < $currentDate
                                      """;
         return await GetEntries(COMMAND, parameters =>
         {
