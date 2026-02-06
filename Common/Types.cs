@@ -4,8 +4,7 @@ public enum QueueStatus
 {
     Queued,
     Downloading,
-    Copying,
-    Throttled,
+    Copying
 }
 
 public enum AddToQueueFailReason
@@ -20,6 +19,7 @@ public enum DownloadFailReason
 {
     None,
     VideoFetchError,
+    VideoBotError,
     VideoDownloadError,
     ResolutionMismatch
 }

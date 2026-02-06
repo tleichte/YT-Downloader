@@ -32,11 +32,10 @@ public class Database
 
     private Database(string connectionString)
     {
-        m_connection = new SqliteConnection(connectionString);
+        m_connection = new SqliteConnection($@"Data Source={connectionString};");
         m_connection.Open();
         
         QueueSchema = new QueueSchema(m_connection);
-        QueueProgressSchema = new QueueProgressSchema(m_connection);
         LinksSchema = new LinksSchema(m_connection);
         LinkMetadataSchema = new LinkMetadataSchema(m_connection);
 
@@ -47,7 +46,6 @@ public class Database
     }
 
     public readonly QueueSchema QueueSchema;
-    public readonly QueueProgressSchema QueueProgressSchema;
     public readonly LinksSchema LinksSchema;
     public readonly LinkMetadataSchema LinkMetadataSchema;
     
@@ -57,7 +55,6 @@ public class Database
         string[] createTableCommands =
         [
             QueueSchema.CreateTableCommand,
-            QueueProgressSchema.CreateTableCommand,
             LinksSchema.CreateTableCommand,
             LinkMetadataSchema.CreateTableCommand,
         ];

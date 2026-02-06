@@ -3,9 +3,13 @@
 public static class Helpers
 {
 
-    public static string GetVideoDiskPath(ulong userId, string videoId)
+    public static string GetVideoDiskFolderPathForUser(ulong userId)
     {
-        return @$"{Config.Current.DiskUrlPrefix}\videos\{userId}\{videoId}.mp4";
+        return @$"{Config.Current.DiskUrlPrefix}\videos\{userId}\";
+    }
+    public static string GetVideoDiskFilePath(ulong userId, string videoId)
+    {
+        return @$"{GetVideoDiskFolderPathForUser(userId)}{videoId}.mp4";
     }
     
     public static string GetServerUrl(ulong userId, string videoId)

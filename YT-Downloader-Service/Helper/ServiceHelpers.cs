@@ -12,7 +12,7 @@ public static class ServiceHelpers
         
         foreach(LinksSchema.Entry expiredLink in expiredLinks)
         {
-            File.Delete(Helpers.GetVideoDiskPath(expiredLink.UserId, expiredLink.VideoId));
+            File.Delete(Helpers.GetVideoDiskFilePath(expiredLink.UserId, expiredLink.VideoId));
             
             await Database.Instance.RemoveLink(expiredLink.UserId, expiredLink.VideoId);
             

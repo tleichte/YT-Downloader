@@ -15,7 +15,7 @@ public class QueuePipeServer : PipeServer<QueueSchema.Entry, Result<AddToQueueFa
             await Database.Instance.QueueSchema.AddEntry(output);
             return Result.MakeSuccess<AddToQueueFailReason>();
         }
-        catch (Exception)
+        catch (Exception e)
         {
             return Result.MakeFail(AddToQueueFailReason.FailedDb);
         }

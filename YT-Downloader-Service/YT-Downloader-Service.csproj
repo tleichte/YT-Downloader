@@ -6,6 +6,11 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <UserSecretsId>dotnet-YT_Downloader_Service-c43f2275-6b36-4194-bfcb-5311964fe2d0</UserSecretsId>
         <RootNamespace>YT_Downloader_Service</RootNamespace>
+        <PublishSingleFile>true</PublishSingleFile>
+        <DebugType>embedded</DebugType>
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+        <SelfContained>true</SelfContained>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     </PropertyGroup>
 
     <ItemGroup>

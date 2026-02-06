@@ -5,6 +5,11 @@
         <TargetFramework>net9.0</TargetFramework>
         <RootNamespace>YT_Downloader_DiscordBot</RootNamespace>
         <ImplicitUsings>enable</ImplicitUsings>
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>true</SelfContained>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <DebugType>embedded</DebugType>
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
@@ -20,6 +25,12 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Common\Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\Common\Config\config.json">
+        <Link>config.json</Link>
+      </Content>
     </ItemGroup>
 
 </Project>

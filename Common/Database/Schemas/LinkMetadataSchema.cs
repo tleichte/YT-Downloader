@@ -19,19 +19,19 @@ public class LinkMetadataSchema : DatabaseSchema<LinkMetadataSchema.Entry>
 
     public override string CreateTableCommand => """
                                                  CREATE TABLE IF NOT EXISTS LinkMetadata (
-                                                     video_id TEXT,
+                                                     video_id TEXT PRIMARY KEY,
                                                      video_title TEXT,
                                                      video_author TEXT,
+                                                     original_url TEXT,
                                                      duration FLOAT
                                                  )
-                                                 PRIMARY KEY (user_id, LinkId)
                                                  """;
 
     protected override string InsertCommand => """
                                                INSERT INTO LinkMetadata 
-                                                   (video_id, video_title, video_author, duration)
+                                                   (video_id, video_title, video_author, original_url, duration)
                                                VALUES 
-                                                   ($user_id, $video_title, $video_author, $duration)
+                                                   ($video_id, $video_title, $video_author, $original_url, $duration)
                                                """;
 
     protected override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
@@ -39,6 +39,7 @@ public class LinkMetadataSchema : DatabaseSchema<LinkMetadataSchema.Entry>
         parameters.AddWithValue("$video_id", entry.VideoId);
         parameters.AddWithValue("$video_title", entry.VideoTitle);
         parameters.AddWithValue("$video_author", entry.VideoAuthor);
+        parameters.AddWithValue("$original_url", entry.OriginalUrl);
         parameters.AddWithValue("$duration", entry.Duration);
     }
 
@@ -47,6 +48,7 @@ public class LinkMetadataSchema : DatabaseSchema<LinkMetadataSchema.Entry>
         VideoId = reader.GetString(reader.GetOrdinal("video_id")),
         VideoTitle = reader.GetString(reader.GetOrdinal("video_title")),
         VideoAuthor = reader.GetString(reader.GetOrdinal("video_author")),
+        OriginalUrl = reader.GetString(reader.GetOrdinal("original_url")),
         Duration = reader.GetFloat(reader.GetOrdinal("duration"))
     };
 

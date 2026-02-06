@@ -3,8 +3,8 @@ using Common;
 using Common.DatabaseSchemas;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
+using DSharpPlus.Commands.Processors.SlashCommands.Metadata;
 using DSharpPlus.Entities;
-using Newtonsoft.Json;
 using YT_Downloader_DiscordBot.Pipes;
 
 namespace YT_Downloader_DiscordBot;
@@ -13,10 +13,14 @@ public class Commands
 {
     [Command("save")]
     [Description("Saves a link to the server.")]
+    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
     public async Task SaveCommand(SlashCommandContext ctx, string name, string url, bool persistent)
     {
-        await ctx.DeferResponseAsync();
+        await ctx.DeferResponseAsync(true);
 
+        string preQueueMessage = $"Adding `{url}` to queue...";
+        DiscordMessage message = await ctx.User.SendMessageAsync(preQueueMessage);
+        
         ulong userId = ctx.User.Id;
         
         // Check if name already exists in queue
@@ -24,8 +28,7 @@ public class Commands
         if (nameQueueEntry != null)
         {
             var response = $"You already have a video queued with the name {name}!\n```\n{nameQueueEntry.Value.Url}```";
-            await ctx.EditResponseAsync(
-                new DiscordWebhookBuilder().WithContent(response));
+            await message.ModifyAsync(response);
             return;
         }
         
@@ -34,14 +37,10 @@ public class Commands
         if (nameLinksEntry != null)
         {
             var response = $"You already have a video with the name {name}!\n```\n{nameLinksEntry.Value}```";
-            await ctx.EditResponseAsync(
-                new DiscordWebhookBuilder().WithContent(response));
+            await message.ModifyAsync(response);
             return;
         }
 
-        string preQueueMessage = $"Adding {url} to queue...";
-        DiscordMessage message = await ctx.EditResponseAsync(preQueueMessage);
-        
         try
         {
             // Send queue entry to worker
@@ -52,43 +51,36 @@ public class Commands
                 Url = url,
                 MessageId = message.Id,
                 Persistent = persistent,
-                Status = QueueStatus.Queued
+                Status = QueueStatus.Queued,
+                Progress = ""
             };
             
             Result<AddToQueueFailReason> result = await new QueuePipeClient().Send(entry);
             
             if (result.Success)
             {
+                // This will send to queue
                 var response = $"Status: Added to queue.";
                 await message.ModifyAsync(response);
             }
             else
             {
                 var response = $"Something went wrong while adding to queue! (Reason: {result.FailValue.ToString()})";
-                await ctx.EditResponseAsync(response);
+                await message.ModifyAsync(response);
             }
         }
         catch (Exception)
         {
             var response = "Something went wrong while adding to queue!";
-            await ctx.EditResponseAsync(response);
+            await message.ModifyAsync(response);
         }
-    }
-
-    [Command("find")]
-    [Description("Finds the link for a given name. Will return multiple if query is similar.")]
-    public async Task FindCommand(SlashCommandContext ctx, string name)
-    {
-        await ctx.DeferResponseAsync(ephemeral:true);
-
-        var response = "";
         
-        await ctx.EditResponseAsync(response);
+        await ctx.DeleteResponseAsync();
     }
-
 
     [Command("bedtime")]
     [Description("[ADMIN] Shuts down the bot")]
+    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
     public async Task BedtimeCommand(SlashCommandContext ctx)
     {
         if (ctx.User.Id != Config.Current.BotOwnerId)

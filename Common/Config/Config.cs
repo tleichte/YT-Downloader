@@ -8,12 +8,12 @@ public struct Config
 
     public static void Create()
     {
-        const string CONFIG_PATH = @"config\config.json"; 
-        if (!File.Exists(CONFIG_PATH))
+        string configPath = $@"{AppContext.BaseDirectory}\config\config.json"; 
+        if (!File.Exists(configPath))
         {
-            throw new FileNotFoundException($"Config file at path not found! {CONFIG_PATH}");
+            throw new FileNotFoundException($"Config file at path not found! {configPath}");
         }
-        string configContentsJson = File.ReadAllText(CONFIG_PATH);
+        string configContentsJson = File.ReadAllText(configPath);
         Current = JsonConvert.DeserializeObject<Config>(configContentsJson);
     }
     

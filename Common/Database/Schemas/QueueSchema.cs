@@ -16,7 +16,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         public ulong MessageId;
         public bool Persistent;
         public QueueStatus Status;
-        public int Progress;
+        public string Progress;
     }
 
     public override string CreateTableCommand => """
@@ -26,9 +26,10 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
                                                      url TEXT,
                                                      message_id TEXT,
                                                      persistent INTEGER,
-                                                     status INTEGER
+                                                     status INTEGER,
+                                                     progress TEXT,
+                                                     PRIMARY KEY (user_id, name)
                                                  )
-                                                 PRIMARY KEY (user_id, name)
                                                  """;
 
     protected override string InsertCommand => """
@@ -57,7 +58,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         MessageId = reader.GetULong(reader.GetOrdinal("message_id")),
         Persistent = reader.GetBoolean(reader.GetOrdinal("persistent")),
         Status = (QueueStatus)reader.GetInt32(reader.GetOrdinal("status")),
-        Progress =  reader.GetInt32(reader.GetOrdinal("progress")),
+        Progress =  reader.GetString(reader.GetOrdinal("progress")),
     };
 
     public async ValueTask<Entry?> GetEntryForName(ulong userId, string name)
@@ -111,7 +112,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         });
     }
 
-    public async Task SetQueueProgress(ulong userId, string name, int progress)
+    public async Task SetQueueProgress(ulong userId, string name, string progress)
     {
         const string COMMAND = """
                                UPDATE Queue SET progress = $progress WHERE user_id = $user_id AND name = $name

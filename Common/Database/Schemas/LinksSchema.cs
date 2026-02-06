@@ -23,9 +23,9 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
                                                      name TEXT,
                                                      video_id TEXT,
                                                      message_id TEXT,
-                                                     delete_after INTEGER
+                                                     delete_after INTEGER,
+                                                     PRIMARY KEY (user_id, name)
                                                  )
-                                                 PRIMARY KEY (user_id, LinkId)
                                                  """;
 
     protected override string InsertCommand => """

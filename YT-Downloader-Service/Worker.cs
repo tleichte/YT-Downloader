@@ -10,10 +10,7 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> m_logger;
 
-    private readonly Mutex m_databaseMutex = new();
-    
-    private readonly Mutex m_throttleTimeMutex = new();
-    private DateTime m_lastThrottleTime = DateTime.MinValue;
+    private VideoDownloadProgress m_currentProgress;
     
     public Worker(ILogger<Worker> logger)
     {
@@ -38,25 +35,41 @@ public class Worker : BackgroundService
             
             if (entry != null)
             {
-                TryRunDownload(entry.Value, stoppingToken);
+                if (entry.Value.Status == QueueStatus.Queued)
+                {
+                    m_currentProgress = new VideoDownloadProgress();
+                    await TryRunDownload(entry.Value, stoppingToken);
+                }
+                else if (entry.Value.Status == QueueStatus.Downloading)
+                {
+                    var progressString = $"{m_currentProgress.Progress*100}% - ({m_currentProgress.ETA})";
+                    await Database.Instance.QueueSchema.SetQueueProgress(entry.Value.UserId, entry.Value.Name,
+                        progressString);
+                }
             }
             
             await Task.Delay(5000, stoppingToken);
         }
     }
 
-    private void TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
+    private async Task TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
     {
-        if (queueEntry.Status == QueueStatus.Queued 
-            || (queueEntry.Status == QueueStatus.Throttled && IsPastLastThrottleTime()))
+        if (queueEntry.Status == QueueStatus.Queued)
         {
+            Database.Instance.Mutex.WaitOne();
+            
+            await Database.Instance.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
+            
+            Database.Instance.Mutex.ReleaseMutex();
             Task _ = Task.Run(async () =>
             {
                 var downloader = new Downloader();
-                Downloader.VideoDownloadResult result = await downloader.RunDownload(queueEntry.Url, cancellationToken:stoppingToken);
+                Downloader.VideoDownloadResult result = await downloader.RunDownload(queueEntry.Url, m_currentProgress, cancellationToken:stoppingToken);
                 if (result.Result.Success)
                 {
-                    string moveToPath = Helpers.GetVideoDiskPath(queueEntry.UserId, result.Metadata.VideoId);
+                    Directory.CreateDirectory(Helpers.GetVideoDiskFolderPathForUser(queueEntry.UserId));
+                 
+                    string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, result.Metadata.VideoId);
                     File.Move(result.Path, moveToPath);
 
                     Database.Instance.Mutex.WaitOne();
@@ -74,101 +87,23 @@ public class Worker : BackgroundService
                     
                     Database.Instance.Mutex.ReleaseMutex();
                 }
-                else
-                {
-                    if (result.Result.FailValue == DownloadFailReason.VideoDownloadError)
-                    {
-                        m_lastThrottleTime = DateTime.Now;
-                        await Database.Instance.QueueSchema.SetQueueStatus(QueueStatus.Throttled, queueEntry.UserId, queueEntry.Name);
-                    }
-                }
                 
                 await new DownloadResultPipeClient().Send(new DownloadResultPipeMessage
                 {
                     UserId = queueEntry.UserId,
                     Name = queueEntry.Name,
+                    OriginalUrl = queueEntry.Url,
+                    MessageId = queueEntry.MessageId,
                     Result = result.Result,
                 });
             }, stoppingToken);
         }
     }
     
-    private bool IsPastLastThrottleTime()
-    {
-        m_throttleTimeMutex.WaitOne();
-        
-        TimeSpan ts = DateTime.Now - m_lastThrottleTime;
-
-        m_throttleTimeMutex.ReleaseMutex();
-
-        return ts.TotalMinutes >= Config.Current.ThrottleRetryTime;
-    }
-    
     private void Subscribe()
     {
         QueuePipeServer server = new();
         server.Start();
-        
-        // Bot sends queue entry -> service adds to db queue -> service sends same queue entry back 
-//         Task.Run(async () =>
-//         {
-//             var server = new NamedPipeServerStream(Config.Current.NamedPipeQueue, PipeDirection.InOut);
-//             
-//             while (true)
-//             {
-//                 try
-//                 {
-//                     await server.WaitForConnectionAsync();
-//                     
-//                     StreamWriter writer = new(server);
-//                     StreamReader reader = new(server);
-//                     string? line = await reader.ReadLineAsync();
-//                     if (line == null)
-//                     {
-//                         continue;
-//                     }
-//                     QueueSchema.Entry? entry = JsonConvert.DeserializeObject<QueueSchema.Entry>(line);
-//                     if (entry == null)
-//                     {
-//                         continue;
-//                     }
-//                     
-//                     m_databaseMutex.WaitOne();
-//
-//                     Result<AddToQueueFailReason> result;
-//                     
-//                     try
-//                     {
-//                         await Database.Instance.QueueSchema.AddEntry(entry.Value);
-//                         result = Result.MakeSuccess<AddToQueueFailReason>();
-//                     }
-//                     catch (Exception)
-//                     {
-//                         result = Result.MakeFail(AddToQueueFailReason.FailedDb);
-//                     }
-//
-//                     m_databaseMutex.ReleaseMutex();
-//                         
-//                     await writer.WriteLineAsync(JsonConvert.SerializeObject(result));
-//                     await writer.FlushAsync();
-//                 }
-//                 catch (Exception e)
-//                 {
-//                     throw e;
-//                 }
-//                 finally
-//                 {
-//                     // This will only ever run on windows, disable warning
-// #pragma warning disable CA1416 
-//                     server.WaitForPipeDrain();
-// #pragma warning restore CA1416
-//                     if (server.IsConnected)
-//                     {
-//                         server.Disconnect();
-//                     }
-//                 }
-//             }
-//         });
     }
     
     

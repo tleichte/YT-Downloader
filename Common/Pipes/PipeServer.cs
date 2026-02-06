@@ -39,7 +39,7 @@ public abstract class PipeServer<TReceive, TResponse>
                     await writer.WriteLineAsync(JsonConvert.SerializeObject(response));
                     await writer.FlushAsync();
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
                     // LOG ERROR??
                 }

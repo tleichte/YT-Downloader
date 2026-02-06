@@ -32,9 +32,6 @@ public static class BotHelpers
             case QueueStatus.Copying:
                 statusString = $"IN PROGRESS - {entry.Progress}";
                 break;
-            case QueueStatus.Throttled:
-                statusString = "THROTTLED - DELAYING...";
-                break;
             default:
                 statusString = "UNKNOWN";
                 break;
@@ -45,12 +42,34 @@ public static class BotHelpers
         return builder.ToString();
     }
 
+    public static string GetLinkFailedMessage(DownloadResultPipeMessage result)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"## {result.Name}");
+        builder.AppendLine($"**Original:**");
+        builder.AppendLine($"`{result.OriginalUrl}`");
+
+        string failReason;
+        switch (result.Result.FailValue)
+        {
+            case DownloadFailReason.VideoFetchError:
+                failReason = "Video does not exist";
+                break;
+            default:
+                failReason = "Download error";
+                break;
+        }
+        builder.AppendLine($"### FAILED - _{failReason}_");
+        
+        return builder.ToString();
+    }
+
     public static string GetLinkMessageString(LinksSchema.Entry entry, LinkMetadataSchema.Entry metadata)
     {
         var builder = new StringBuilder();
 
-        builder.AppendLine($"**{entry.Name}**");
-
+        builder.AppendLine($"## {entry.Name}");
+        
         builder.AppendLine($"**Original:**");
 
         List<string> titleStrings = [];
@@ -108,25 +127,33 @@ public static class BotHelpers
 
     public static async Task UpdateResultMessage(DiscordClient client, DownloadResultPipeMessage downloadResult)
     {
-        LinksSchema.Entry? entry = await Database.Instance.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
-        if (entry == null)
-        {
-            return;
-        }
-
-        LinkMetadataSchema.Entry? metadata =
-            await Database.Instance.LinkMetadataSchema.GetMetadataForVideo(entry.Value.VideoId);
-        if (metadata == null)
-        {
-            return;
-        }
-        
-        DiscordUser user = await client.GetUserAsync(entry.Value.UserId);
+        DiscordUser user = await client.GetUserAsync(downloadResult.UserId);
         DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
-        DiscordMessage message = await dmChannelAsync.GetMessageAsync(entry.Value.MessageId);
+        DiscordMessage message = await dmChannelAsync.GetMessageAsync(downloadResult.MessageId);
         
-        string messageString = GetLinkMessageString(entry.Value, metadata.Value);
-        
-        await message.ModifyAsync(messageString);
+        if (!downloadResult.Result.Success)
+        {
+            string failMessageString = GetLinkFailedMessage(downloadResult);
+            await message.ModifyAsync(failMessageString);
+        }
+        else
+        {
+            LinksSchema.Entry? entry = await Database.Instance.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
+            if (entry == null)
+            {
+                return;
+            }
+
+            LinkMetadataSchema.Entry? metadata =
+                await Database.Instance.LinkMetadataSchema.GetMetadataForVideo(entry.Value.VideoId);
+            if (metadata == null)
+            {
+                return;
+            }
+            
+            string messageString = GetLinkMessageString(entry.Value, metadata.Value);
+            
+            await message.ModifyAsync(messageString);
+        }
     }
 }
