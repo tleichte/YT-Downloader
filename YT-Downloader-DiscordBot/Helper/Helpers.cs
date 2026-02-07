@@ -1,6 +1,6 @@
-﻿using YT_Downloader_DiscordBot.Config;
+﻿using YT_Downloader_DiscordBot.CF;
 
-namespace Common;
+namespace YT_Downloader_DiscordBot.Helper;
 
 public static class Helpers
 {

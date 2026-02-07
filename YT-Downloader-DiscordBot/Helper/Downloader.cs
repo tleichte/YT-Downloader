@@ -2,7 +2,8 @@
 using YoutubeDLSharp;
 using YoutubeDLSharp.Metadata;
 using YoutubeDLSharp.Options;
-using YT_Downloader_DiscordBot.Database.Schemas;
+using YT_Downloader_DiscordBot.CF;
+using YT_Downloader_DiscordBot.DB.Schemas;
 using YT_Downloader_Service;
 
 namespace YT_Downloader_DiscordBot.Helper;
@@ -69,7 +70,7 @@ public class Downloader
     {
         var ytDl = new YoutubeDL
         {
-            OutputFolder = Config.Config.Current.TempDownloadsPath
+            OutputFolder = Config.Current.TempDownloadsPath
         };
 
         var dataResult = await ytDl.RunVideoDataFetch(url, ct:cancellationToken);
@@ -137,7 +138,7 @@ public class Downloader
 
         var ytDl = new YoutubeDL
         {
-            OutputFolder = Config.Config.Current.TempDownloadsPath
+            OutputFolder = Config.Current.TempDownloadsPath
         };
         
         var options = new OptionSet()
@@ -162,7 +163,7 @@ public class Downloader
             
         // Retry with cookies if download fail reason is because of a bot detect
         
-        options.Cookies = Config.Config.Current.CookiesPath;
+        options.Cookies = Config.Current.CookiesPath;
         result = await RunDownloadInner(ytDl, url, options, progress, cancellationToken);
         if (result.Result.Success)
         {

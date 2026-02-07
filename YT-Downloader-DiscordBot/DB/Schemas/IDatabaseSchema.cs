@@ -1,6 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 
-namespace YT_Downloader_DiscordBot.Database.Schemas;
+namespace YT_Downloader_DiscordBot.DB.Schemas;
 
 public abstract class DatabaseSchema<T> where T : struct
 {

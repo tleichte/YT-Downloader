@@ -1,7 +1,7 @@
 ﻿using Common;
 using Microsoft.Data.Sqlite;
 
-namespace YT_Downloader_DiscordBot.Database.Schemas;
+namespace YT_Downloader_DiscordBot.DB.Schemas;
 
 public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
 {
@@ -76,7 +76,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
                                     """;
         return await GetEntry(QUERY, (parameters) =>
             {
-                parameters.AddULong("$user_id", userId);
+                DatabaseHelpers.AddULong(parameters, "$user_id", userId);
                 parameters.AddWithValue("$name", name);
             });
     }
@@ -108,7 +108,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         await Execute(COMMAND, parameters =>
         {
             parameters.AddWithValue("$status", (int)status);
-            parameters.AddULong("$user_id", userId);
+            DatabaseHelpers.AddULong(parameters, "$user_id", userId);
             parameters.AddWithValue("$name", name);
         });
     }
@@ -121,7 +121,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         await Execute(COMMAND, parameters =>
         {
             parameters.AddWithValue("$progress", progress);
-            parameters.AddULong("$user_id", userId);
+            DatabaseHelpers.AddULong(parameters, "$user_id", userId);
             parameters.AddWithValue("$name", name);
         });
     }

@@ -2,13 +2,33 @@
 using Common;
 using DSharpPlus;
 using DSharpPlus.Entities;
-using YT_Downloader_DiscordBot.Database.Schemas;
+using YT_Downloader_DiscordBot.DB;
+using YT_Downloader_DiscordBot.DB.Schemas;
 
 namespace YT_Downloader_DiscordBot.Helper;
 
 public static class BotHelpers
 {
 
+    public static async ValueTask<DiscordMessage?> GetMessage(DiscordUser user, ulong messageId)
+    {
+        try
+        {
+            DiscordDmChannel channel = await user.CreateDmChannelAsync();
+            return await channel.GetMessageAsync(messageId);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+    
+    public static async ValueTask<Uri?> GetJumpLink(DiscordUser user, ulong messageId)
+    {
+        DiscordMessage? message = await GetMessage(user, messageId);
+        return message?.JumpLink;
+    }
+    
     public static string GetQueueMessage(QueueSchema.Entry entry)
     {
         var builder = new StringBuilder();
@@ -97,7 +117,7 @@ public static class BotHelpers
     
     public static async Task TryUpdateQueueMessage(DiscordClient client)
     {
-        QueueSchema.Entry? entry = await Database.Database.Instance.QueueSchema.GetFirstEntry();
+        QueueSchema.Entry? entry = await Database.Current.QueueSchema.GetFirstEntry();
         if (entry == null || entry.Value.Status == QueueStatus.Queued)
         {
             return;
@@ -124,40 +144,62 @@ public static class BotHelpers
     private static async Task UpdateResultMessage(DiscordClient client, DownloadResult downloadResult)
     {
         DiscordUser user = await client.GetUserAsync(downloadResult.UserId);
-        DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
-        DiscordMessage message = await dmChannelAsync.GetMessageAsync(downloadResult.MessageId);
+        
+        DiscordMessage? message = await GetMessage(user, downloadResult.MessageId);
+        if (message == null)
+        {
+            return;
+        }
         
         if (!downloadResult.Result.Success)
         {
             // Have different versions depending on type
+            
             string failMessageString = GetLinkFailedMessage(downloadResult);
             await message.ModifyAsync(failMessageString);
-            
-            
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMinutes(Constants.ErrorMessageTimeoutMinutes));
+                
+                AsyncQueues.RemoveMessageQueue.Enqueue(new RemoveMessagePayload
+                {
+                    UserId = downloadResult.UserId,
+                    MessageId = downloadResult.MessageId,
+                });
+            });
+
+            return;
         }
-        else
+        
+        Database.Current.Mutex.WaitOne();
+        LinksSchema.Entry? entry = await Database.Current.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
+        Database.Current.Mutex.ReleaseMutex();
+        if (entry == null)
         {
-            LinksSchema.Entry? entry = await Database.Database.Instance.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
-            if (entry == null)
-            {
-                return;
-            }
-
-            LinkMetadataSchema.Entry? metadata =
-                await Database.Database.Instance.LinkMetadataSchema.GetMetadataForVideo(entry.Value.VideoId);
-            if (metadata == null)
-            {
-                return;
-            }
-            
-            string messageString = GetLinkMessageString(entry.Value, metadata.Value);
-            
-            await message.ModifyAsync(messageString);
-
-            await message.CreateReactionAsync(Constants.EmojiToCheck);
+            return;
         }
-    }
+        
+        await UpdateMessageForLink(message, entry.Value);
 
+        await message.CreateReactionAsync(Constants.EmojiToCheck);
+    }
+    
+    public static async Task UpdateMessageForLink(DiscordMessage message, LinksSchema.Entry entry)
+    {
+        Database.Current.Mutex.WaitOne();
+        LinkMetadataSchema.Entry? metadata =
+            await Database.Current.LinkMetadataSchema.GetMetadataForVideo(entry.VideoId);
+        Database.Current.Mutex.ReleaseMutex();
+        if (metadata == null)
+        {
+            return;
+        }
+        
+        string messageString = GetLinkMessageString(entry, metadata.Value);
+        await message.ModifyAsync(messageString);
+    }
+    
     public static async Task CheckForRemoveMessages(DiscordClient client)
     {
         while (!AsyncQueues.RemoveMessageQueue.IsEmpty)

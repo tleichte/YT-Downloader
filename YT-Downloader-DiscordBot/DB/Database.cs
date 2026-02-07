@@ -1,7 +1,8 @@
 ﻿using Microsoft.Data.Sqlite;
-using YT_Downloader_DiscordBot.Database.Schemas;
+using YT_Downloader_DiscordBot.CF;
+using YT_Downloader_DiscordBot.DB.Schemas;
 
-namespace YT_Downloader_DiscordBot.Database;
+namespace YT_Downloader_DiscordBot.DB;
 
 public static class DatabaseHelpers
 {
@@ -18,11 +19,11 @@ public static class DatabaseHelpers
 
 public class Database
 {
-    public static Database Instance { get; private set; }
+    public static Database Current { get; private set; }
     static Database()
     {
-        Instance = new Database(Config.Config.Current.DatabasePath);
-        Instance.InitializeDb();
+        Current = new Database(Config.Current.DatabasePath);
+        Current.InitializeDb();
     }
 
     public readonly Mutex Mutex = new();

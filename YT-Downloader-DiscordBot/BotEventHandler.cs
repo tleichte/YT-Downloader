@@ -2,7 +2,8 @@
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
-using YT_Downloader_DiscordBot.Database.Schemas;
+using YT_Downloader_DiscordBot.DB;
+using YT_Downloader_DiscordBot.DB.Schemas;
 using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot;
@@ -21,7 +22,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             return;
         }
 
-        LinksSchema.Entry? value = await Database.Database.Instance.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+        LinksSchema.Entry? value = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
         if (value == null)
         {
             return;
@@ -93,7 +94,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         ulong userId = eventArgs.Interaction.User.Id;
         
         // Check if name already exists in queue
-        QueueSchema.Entry? nameQueueEntry = await Database.Database.Instance.QueueSchema.GetEntryForName(userId, name);
+        QueueSchema.Entry? nameQueueEntry = await Database.Current.QueueSchema.GetEntryForName(userId, name);
         if (nameQueueEntry != null)
         {
             DiscordDmChannel channel = await eventArgs.Interaction.User.CreateDmChannelAsync();
@@ -104,7 +105,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         }
         
         // Check if name already exists in links
-        LinksSchema.Entry? nameLinksEntry = await Database.Database.Instance.LinksSchema.GetEntryForName(userId, name);
+        LinksSchema.Entry? nameLinksEntry = await Database.Current.LinksSchema.GetEntryForName(userId, name);
         if (nameLinksEntry != null)
         {
             DiscordDmChannel channel = await eventArgs.Interaction.User.CreateDmChannelAsync();
@@ -114,9 +115,9 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             return;
         }
 
-        Database.Database.Instance.Mutex.WaitOne();
+        Database.Current.Mutex.WaitOne();
 
-        await Database.Database.Instance.QueueSchema.AddEntry(new QueueSchema.Entry
+        await Database.Current.QueueSchema.AddEntry(new QueueSchema.Entry
         {
             UserId = userId,
             Name = name,
@@ -127,7 +128,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             Progress = ""
         });
         
-        Database.Database.Instance.Mutex.ReleaseMutex();
+        Database.Current.Mutex.ReleaseMutex();
         
         // This will send to queue
         var successResponse = $"Status: Added `{url}` to queue.";

@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace YT_Downloader_DiscordBot.Config;
+namespace YT_Downloader_DiscordBot.CF;
 
 public struct Config
 {

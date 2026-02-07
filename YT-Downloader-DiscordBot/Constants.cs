@@ -13,6 +13,8 @@ public static class Constants
     public const string ModalExpireOptionNeverId = "never";
 
     public const int ExpirationDays = 14;
+
+    public const int ErrorMessageTimeoutMinutes = 1;
     
     public static readonly DiscordEmoji EmojiToCheck = DiscordEmoji.FromUnicode("❌");
 }

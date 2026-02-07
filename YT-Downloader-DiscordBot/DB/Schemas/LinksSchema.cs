@@ -1,6 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 
-namespace YT_Downloader_DiscordBot.Database.Schemas;
+namespace YT_Downloader_DiscordBot.DB.Schemas;
 
 public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
 {
@@ -125,19 +125,19 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
     }
 
 
-    public async ValueTask<Entry[]> GetLinkEntriesLikeName(ulong userId,
+    public async ValueTask<Entry[]> GetEntriesLikeName(ulong userId,
         string name)
     {
         const string QUERY = """
                              SELECT * FROM Links
                              WHERE
                                  user_id = $user_id AND
-                                 name like "%$name%"
+                                 name like $name
                              """;
         return await GetEntries(QUERY, parameters =>
         {
             parameters.AddULong("$user_id", userId);
-            parameters.AddWithValue("$name", name);
+            parameters.AddWithValue("$name", $"%{name}%");
         });
     }
 
@@ -151,6 +151,19 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
         return await GetEntry(QUERY, parameters =>
         {
             parameters.AddULong("$message_id", messageId);
+        });
+    }
+
+    public async Task Rename(ulong userId, string oldName, string newName)
+    {
+        const string COMMAND = """
+                               UPDATE Links SET name = $new_name where user_id = $user_id and name = $old_name
+                               """;
+        await Execute(COMMAND, parameters =>
+        {
+            parameters.AddWithValue("$new_name", newName);
+            parameters.AddULong("$user_id", userId);
+            parameters.AddWithValue("$old_name", oldName);
         });
     }
 }
