@@ -22,9 +22,9 @@ public class Commands
             "The URL to download the video from. Must be supported by yt-dlp.");
         modalBuilder.AddTextInput(new DiscordTextInputComponent(Constants.ModalNameId, placeholder:"My Cool Video"), "Name",
             "The user-defined name for IDing this video. Must be unique.");
-        modalBuilder.AddSelectMenu(new DiscordSelectComponent(Constants.ModalExpiresId, "Standard", new DiscordSelectComponentOption[]
+        modalBuilder.AddSelectMenu(new DiscordSelectComponent(Constants.ModalExpiresId, "placeholder (you shouldn't see me)", new DiscordSelectComponentOption[]
         {
-            new("Standard", Constants.ModalExpireOptionStandardId),
+            new("Standard", Constants.ModalExpireOptionStandardId, isDefault:true),
             new("Never", Constants.ModalExpireOptionNeverId),
         }, required: true), "Expiration", "When this video should expire. By default videos expire in 2 weeks.");
         await ctx.RespondWithModalAsync(modalBuilder);

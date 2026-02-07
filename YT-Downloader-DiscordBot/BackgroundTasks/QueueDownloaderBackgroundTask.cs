@@ -54,7 +54,7 @@ public class QueueDownloaderBackgroundTask
                             if (m_progress != null)
                             {
                                 StringBuilder progressString = new();
-                                progressString.Append($"{m_progress.Progress * 100}%");
+                                progressString.Append($"{(m_progress.Progress * 100):0.#}%");
                                 if (!string.IsNullOrEmpty(m_progress.ETA))
                                 {
                                     progressString.Append($" - ({m_progress.ETA})");
