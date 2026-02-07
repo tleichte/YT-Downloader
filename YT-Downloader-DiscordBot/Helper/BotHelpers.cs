@@ -108,7 +108,8 @@ public static class BotHelpers
         
         if (entry.DeleteAfter != DateTime.MaxValue)
         {
-            builder.AppendLine($"Expires: <t:{(int)(entry.DeleteAfter - DateTime.UnixEpoch).TotalSeconds}:f>");
+            int seconds = (int)(entry.DeleteAfter.ToUniversalTime() - DateTime.UnixEpoch).TotalSeconds;
+            builder.AppendLine($"Expires: <t:{seconds}:f>");
         }
         
         return builder.ToString();
