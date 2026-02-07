@@ -1,8 +1,7 @@
-﻿using Common.DatabaseSchemas;
-using Microsoft.Data.Sqlite;
-using Newtonsoft.Json;
+﻿using Microsoft.Data.Sqlite;
+using YT_Downloader_DiscordBot.Database.Schemas;
 
-namespace Common;
+namespace YT_Downloader_DiscordBot.Database;
 
 public static class DatabaseHelpers
 {
@@ -22,7 +21,7 @@ public class Database
     public static Database Instance { get; private set; }
     static Database()
     {
-        Instance = new Database(Config.Current.DatabasePath);
+        Instance = new Database(Config.Config.Current.DatabasePath);
         Instance.InitializeDb();
     }
 

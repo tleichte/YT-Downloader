@@ -1,33 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 
-namespace Common.DatabaseSchemas;
-
-// public enum DBColumnType
-// {
-//     INTEGER,
-//     FLOAT,
-//     TEXT
-// }
-// [AttributeUsage(AttributeTargets.Field)]
-// public class DBColumnAttribute : Attribute
-// {
-//     public string ColumnName { get; private set; }
-//     public DBColumnAttribute(string columnName, DBColumnType type)
-//     {
-//         ColumnName = columnName;
-//     }
-// }
-
-public interface IDatabaseSchema<T> where T : struct
-{
-    static abstract string GetCreateTableCommand();
-    static abstract Task ExecuteInsert(SqliteConnection connection, T entry);
-    static abstract bool ParseEntry(SqliteDataReader reader, out T entry);
-    
-    static abstract Task<T?> ParseSingleEntry(SqliteDataReader reader);
-    
-    static abstract Task<T[]> ParseEntries(SqliteDataReader reader);
-}
+namespace YT_Downloader_DiscordBot.Database.Schemas;
 
 public abstract class DatabaseSchema<T> where T : struct
 {

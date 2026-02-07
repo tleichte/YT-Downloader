@@ -1,7 +1,7 @@
 ﻿using System.Text;
 using Common;
-using Common.DatabaseSchemas;
 using Microsoft.Extensions.Logging;
+using YT_Downloader_DiscordBot.Database.Schemas;
 using YT_Downloader_DiscordBot.Helper;
 using YT_Downloader_Service;
 
@@ -27,15 +27,15 @@ public class QueueDownloaderBackgroundTask
         {
             try
             {
-                Database.Instance.Mutex.WaitOne();
+                Database.Database.Instance.Mutex.WaitOne();
                 QueueSchema.Entry? entry;
                 try
                 {
-                    entry = await Database.Instance.QueueSchema.GetFirstEntry();
+                    entry = await Database.Database.Instance.QueueSchema.GetFirstEntry();
                 }
                 finally
                 {
-                    Database.Instance.Mutex.ReleaseMutex();
+                    Database.Database.Instance.Mutex.ReleaseMutex();
                 }
 
                 if (entry != null)
@@ -60,16 +60,16 @@ public class QueueDownloaderBackgroundTask
                                     progressString.Append($" - ({m_progress.ETA})");
                                 }
 
-                                Database.Instance.Mutex.WaitOne();
+                                Database.Database.Instance.Mutex.WaitOne();
                                 try
                                 {
-                                    await Database.Instance.QueueSchema.SetQueueProgress(entry.Value.UserId,
+                                    await Database.Database.Instance.QueueSchema.SetQueueProgress(entry.Value.UserId,
                                         entry.Value.Name,
                                         progressString.ToString());
                                 }
                                 finally
                                 {
-                                    Database.Instance.Mutex.ReleaseMutex();
+                                    Database.Database.Instance.Mutex.ReleaseMutex();
                                 }
                             }
 
@@ -89,19 +89,19 @@ public class QueueDownloaderBackgroundTask
 
     private static async Task DoDownloadFail(QueueSchema.Entry queueEntry, VideoDataResult? videoData, DownloadFailReason failReason)
     {
-        Database.Instance.Mutex.WaitOne();
-        await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
-        Database.Instance.Mutex.ReleaseMutex();
+        Database.Database.Instance.Mutex.WaitOne();
+        await Database.Database.Instance.QueueSchema.RemoveFirstQueueEntry();
+        Database.Database.Instance.Mutex.ReleaseMutex();
         
         AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateFail(queueEntry, videoData?.Data, failReason));
     }
 
     private static async Task DoDownloadSuccess(QueueSchema.Entry queueEntry, VideoDataResult videoData)
     {
-        Database.Instance.Mutex.WaitOne();
+        Database.Database.Instance.Mutex.WaitOne();
         
-        await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
-        await Database.Instance.LinksSchema.AddEntry(new LinksSchema.Entry
+        await Database.Database.Instance.QueueSchema.RemoveFirstQueueEntry();
+        await Database.Database.Instance.LinksSchema.AddEntry(new LinksSchema.Entry
         {
             UserId = queueEntry.UserId,
             Name = queueEntry.Name,
@@ -112,16 +112,16 @@ public class QueueDownloaderBackgroundTask
                 : DateTime.Now + TimeSpan.FromDays(Constants.ExpirationDays)
         });
         
-        Database.Instance.Mutex.ReleaseMutex();
+        Database.Database.Instance.Mutex.ReleaseMutex();
         
         AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateSuccess(queueEntry, videoData.Data));
     }
     
     private async Task TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
     {
-        Database.Instance.Mutex.WaitOne();
-        await Database.Instance.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
-        Database.Instance.Mutex.ReleaseMutex();
+        Database.Database.Instance.Mutex.WaitOne();
+        await Database.Database.Instance.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
+        Database.Database.Instance.Mutex.ReleaseMutex();
         
         Directory.CreateDirectory(Helpers.GetVideoDiskFolderPathForUser(queueEntry.UserId));
         
@@ -139,9 +139,9 @@ public class QueueDownloaderBackgroundTask
                 
                 string videoId = videoData.VideoId;
                 
-                Database.Instance.Mutex.WaitOne();
-                LinksSchema.Entry[] existingVideoIdEntries = await Database.Instance.LinksSchema.GetEntriesForVideoId(videoData.VideoId ?? string.Empty);
-                Database.Instance.Mutex.ReleaseMutex();
+                Database.Database.Instance.Mutex.WaitOne();
+                LinksSchema.Entry[] existingVideoIdEntries = await Database.Database.Instance.LinksSchema.GetEntriesForVideoId(videoData.VideoId ?? string.Empty);
+                Database.Database.Instance.Mutex.ReleaseMutex();
 
                 if (existingVideoIdEntries.Length > 0)
                 {
@@ -170,8 +170,8 @@ public class QueueDownloaderBackgroundTask
                 string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
                 File.Move(result.Path, moveToPath);
 
-                Database.Instance.Mutex.WaitOne();
-                await Database.Instance.LinkMetadataSchema.AddEntry(new LinkMetadataSchema.Entry
+                Database.Database.Instance.Mutex.WaitOne();
+                await Database.Database.Instance.LinkMetadataSchema.AddEntry(new LinkMetadataSchema.Entry
                 {
                     VideoId = videoId,
                     VideoTitle = videoData.Data?.Title ?? string.Empty,
@@ -179,7 +179,7 @@ public class QueueDownloaderBackgroundTask
                     OriginalUrl = queueEntry.Url,
                     Duration = videoData.Data?.Duration ?? 0
                 });
-                Database.Instance.Mutex.ReleaseMutex();
+                Database.Database.Instance.Mutex.ReleaseMutex();
                 
                 await DoDownloadSuccess(queueEntry, videoData);
             }

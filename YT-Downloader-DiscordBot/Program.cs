@@ -7,6 +7,7 @@ using DSharpPlus.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using YT_Downloader_DiscordBot;
+using YT_Downloader_DiscordBot.Config;
 
 
 Config.Create();

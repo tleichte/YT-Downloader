@@ -25,12 +25,8 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Common\Common.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Content Include="..\Common\Config\config.json">
-        <Link>config.json</Link>
+        <Link>Config\config.json</Link>
       </Content>
     </ItemGroup>
 

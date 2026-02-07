@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using Common;
-using Common.DatabaseSchemas;
 
 namespace YT_Downloader_DiscordBot.Helper;
 

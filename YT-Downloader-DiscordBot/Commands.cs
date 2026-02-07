@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using Common;
-using Common.DatabaseSchemas;
 using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Commands.Processors.SlashCommands.Metadata;
@@ -35,7 +34,7 @@ public class Commands
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
     public async Task BedtimeCommand(SlashCommandContext ctx)
     {
-        if (ctx.User.Id != Config.Current.BotOwnerId)
+        if (ctx.User.Id != Config.Config.Current.BotOwnerId)
         {
             await ctx.RespondAsync("You're not the boss of me!");
             return;

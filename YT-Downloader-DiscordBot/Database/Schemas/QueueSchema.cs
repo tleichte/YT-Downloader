@@ -1,6 +1,7 @@
-﻿using Microsoft.Data.Sqlite;
+﻿using Common;
+using Microsoft.Data.Sqlite;
 
-namespace Common.DatabaseSchemas;
+namespace YT_Downloader_DiscordBot.Database.Schemas;
 
 public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
 {

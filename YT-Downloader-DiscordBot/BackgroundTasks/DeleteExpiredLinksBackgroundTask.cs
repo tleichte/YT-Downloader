@@ -1,6 +1,6 @@
 ﻿using Common;
-using Common.DatabaseSchemas;
 using Microsoft.Extensions.Logging;
+using YT_Downloader_DiscordBot.Database.Schemas;
 using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot.BackgroundTasks;
@@ -22,9 +22,9 @@ public class DeleteExpiredLinksBackgroundTask
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            Database.Instance.Mutex.WaitOne();
-            LinksSchema.Entry[] expiredLinks = await Database.Instance.LinksSchema.GetExpiredLinks();
-            Database.Instance.Mutex.ReleaseMutex();
+            Database.Database.Instance.Mutex.WaitOne();
+            LinksSchema.Entry[] expiredLinks = await Database.Database.Instance.LinksSchema.GetExpiredLinks();
+            Database.Database.Instance.Mutex.ReleaseMutex();
             
             foreach(LinksSchema.Entry expiredLink in expiredLinks)
             {

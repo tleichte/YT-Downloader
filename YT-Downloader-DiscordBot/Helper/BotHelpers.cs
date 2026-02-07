@@ -1,8 +1,8 @@
 ﻿using System.Text;
 using Common;
-using Common.DatabaseSchemas;
 using DSharpPlus;
 using DSharpPlus.Entities;
+using YT_Downloader_DiscordBot.Database.Schemas;
 
 namespace YT_Downloader_DiscordBot.Helper;
 
@@ -97,7 +97,7 @@ public static class BotHelpers
     
     public static async Task TryUpdateQueueMessage(DiscordClient client)
     {
-        QueueSchema.Entry? entry = await Database.Instance.QueueSchema.GetFirstEntry();
+        QueueSchema.Entry? entry = await Database.Database.Instance.QueueSchema.GetFirstEntry();
         if (entry == null || entry.Value.Status == QueueStatus.Queued)
         {
             return;
@@ -137,14 +137,14 @@ public static class BotHelpers
         }
         else
         {
-            LinksSchema.Entry? entry = await Database.Instance.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
+            LinksSchema.Entry? entry = await Database.Database.Instance.LinksSchema.GetEntryForName(downloadResult.UserId, downloadResult.Name);
             if (entry == null)
             {
                 return;
             }
 
             LinkMetadataSchema.Entry? metadata =
-                await Database.Instance.LinkMetadataSchema.GetMetadataForVideo(entry.Value.VideoId);
+                await Database.Database.Instance.LinkMetadataSchema.GetMetadataForVideo(entry.Value.VideoId);
             if (metadata == null)
             {
                 return;

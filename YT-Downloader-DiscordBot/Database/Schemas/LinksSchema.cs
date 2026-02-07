@@ -1,6 +1,6 @@
 ﻿using Microsoft.Data.Sqlite;
 
-namespace Common.DatabaseSchemas;
+namespace YT_Downloader_DiscordBot.Database.Schemas;
 
 public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
 {

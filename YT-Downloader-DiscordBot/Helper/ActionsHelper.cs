@@ -1,5 +1,5 @@
 ﻿using Common;
-using Common.DatabaseSchemas;
+using YT_Downloader_DiscordBot.Database.Schemas;
 
 namespace YT_Downloader_DiscordBot.Helper;
 
@@ -7,9 +7,9 @@ public static class ActionsHelper
 {
     public static async Task DeleteLink(LinksSchema.Entry entry)
     {
-        Database.Instance.Mutex.WaitOne();
-        await Database.Instance.RemoveLink(entry.UserId, entry.Name);
-        Database.Instance.Mutex.ReleaseMutex();
+        Database.Database.Instance.Mutex.WaitOne();
+        await Database.Database.Instance.RemoveLink(entry.UserId, entry.Name);
+        Database.Database.Instance.Mutex.ReleaseMutex();
 
         try
         {

@@ -1,4 +1,6 @@
-﻿namespace Common;
+﻿using YT_Downloader_DiscordBot.Config;
+
+namespace Common;
 
 public static class Helpers
 {
