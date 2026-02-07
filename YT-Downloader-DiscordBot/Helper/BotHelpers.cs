@@ -1,15 +1,10 @@
-﻿using System.IO.Pipes;
-using System.Text;
+﻿using System.Text;
 using Common;
 using Common.DatabaseSchemas;
 using DSharpPlus;
 using DSharpPlus.Entities;
-using Microsoft.Data.Sqlite;
-using Newtonsoft.Json;
-using YT_Downloader_DiscordBot.Helper;
-using YT_Downloader_DiscordBot.Pipes;
 
-namespace YT_Downloader_DiscordBot;
+namespace YT_Downloader_DiscordBot.Helper;
 
 public static class BotHelpers
 {
@@ -134,6 +129,7 @@ public static class BotHelpers
         
         if (!downloadResult.Result.Success)
         {
+            
             string failMessageString = GetLinkFailedMessage(downloadResult);
             await message.ModifyAsync(failMessageString);
         }

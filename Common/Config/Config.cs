@@ -30,8 +30,6 @@ public struct Config
     
     public string NamedPipeQueue;                   // The name of the IPC pipe to communicate initial queueing 
     public string NamedPipeDownloadResult;          // The name of the IPC pipe to communicate status message updates
-    
-    public int ThrottleRetryTime;                   // The amount of time in minutes before retrying to download when throttled by Youtube
 
     public int ExpirationDays;                      // The amount of time from creation before the link expires
 }

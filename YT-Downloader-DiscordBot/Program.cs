@@ -21,6 +21,10 @@ await Host.CreateDefaultBuilder()
         {
             extension.AddCommands<Commands>();
         });
+        services.ConfigureEventHandlers((builder) =>
+        {
+            builder.AddEventHandlers<BotEventHandler>();
+        });
     })
     .RunConsoleAsync();
 

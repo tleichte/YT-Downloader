@@ -21,7 +21,7 @@ public enum DownloadFailReason
     VideoFetchError,
     VideoBotError,
     VideoDownloadError,
-    ResolutionMismatch
+    VideoAlreadyDownloaded,
 }
 
 public static class Result

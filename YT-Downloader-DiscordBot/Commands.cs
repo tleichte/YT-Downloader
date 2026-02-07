@@ -5,62 +5,29 @@ using DSharpPlus.Commands;
 using DSharpPlus.Commands.Processors.SlashCommands;
 using DSharpPlus.Commands.Processors.SlashCommands.Metadata;
 using DSharpPlus.Entities;
-using YT_Downloader_DiscordBot.Pipes;
 
 namespace YT_Downloader_DiscordBot;
 
 public class Commands
 {
     [Command("save")]
-    [Description("Saves a link to the server.")]
-    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
-    public async Task SaveCommand(SlashCommandContext ctx, string name, string url, bool persistent = false)
+    [Description("Saves a link to the media server.")]
+    public async Task SaveCommand(SlashCommandContext ctx)
     {
-        await ctx.DeferResponseAsync(true);
-
-        string preQueueMessage = $"Adding `{url}` to queue...";
-        DiscordMessage message = await ctx.User.SendMessageAsync(preQueueMessage);
-        
-        ulong userId = ctx.User.Id;
-        
-        // Check if name already exists in queue
-        QueueSchema.Entry? nameQueueEntry = await Database.Instance.QueueSchema.GetEntryForName(userId, name);
-        if (nameQueueEntry != null)
+        DiscordModalBuilder modalBuilder = new();
+        modalBuilder.WithCustomId(Constants.SaveLinkModalId);
+        modalBuilder.WithTitle("Save Video Link");
+        modalBuilder.AddTextInput(
+            new DiscordTextInputComponent(Constants.ModalURLId, placeholder: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "URL",
+            "The URL to download the video from. Must be supported by yt-dlp.");
+        modalBuilder.AddTextInput(new DiscordTextInputComponent(Constants.ModalNameId, placeholder:"My Cool Video"), "Name",
+            "The user-defined name for IDing this video. Must be unique.");
+        modalBuilder.AddSelectMenu(new DiscordSelectComponent(Constants.ModalExpiresId, "Standard", new DiscordSelectComponentOption[]
         {
-            var response = $"You already have a video queued with the name {name}!\n```\n{nameQueueEntry.Value.Url}```";
-            await message.ModifyAsync(response);
-            return;
-        }
-        
-        // Check if name already exists in links
-        LinksSchema.Entry? nameLinksEntry = await Database.Instance.LinksSchema.GetEntryForName(userId, name);
-        if (nameLinksEntry != null)
-        {
-            var response = $"You already have a video with the name {name}!\n```\n{nameLinksEntry.Value}```";
-            await message.ModifyAsync(response);
-            return;
-        }
-
-        Database.Instance.Mutex.WaitOne();
-
-        await Database.Instance.QueueSchema.AddEntry(new QueueSchema.Entry
-        {
-            UserId = userId,
-            Name = name,
-            Url = url,
-            MessageId = message.Id,
-            Persistent = persistent,
-            Status = QueueStatus.Queued,
-            Progress = ""
-        });
-        
-        Database.Instance.Mutex.ReleaseMutex();
-        
-        // This will send to queue
-        var successResponse = $"Status: Added `{url}` to queue.";
-        await message.ModifyAsync(successResponse);
-        
-        await ctx.DeleteResponseAsync();
+            new("Standard", Constants.ModalExpireOptionStandardId),
+            new("Never", Constants.ModalExpireOptionNeverId),
+        }, required: true), "Expiration", "When this video should expire. By default videos expire in 2 weeks.");
+        await ctx.RespondWithModalAsync(modalBuilder);
     }
 
     [Command("bedtime")]

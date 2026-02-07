@@ -1,12 +1,8 @@
-﻿using Common;
-using Common.DatabaseSchemas;
-using DSharpPlus;
-using DSharpPlus.Entities;
+﻿using DSharpPlus;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using YT_Downloader_DiscordBot.BackgroundTasks;
-using YT_Downloader_DiscordBot.Pipes;
-using YT_Downloader_Service;
+using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot;
 
