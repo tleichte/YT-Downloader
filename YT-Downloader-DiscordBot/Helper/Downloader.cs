@@ -112,7 +112,6 @@ public class Downloader
     {
         public Result<DownloadFailReason> Result { get; private set; }
         public string Path { get; private set; }
-        public LinkMetadataSchema.Entry Metadata { get; private set; }
 
         public static VideoDownloadResult MakeFail(DownloadFailReason reason)
         {
@@ -120,17 +119,15 @@ public class Downloader
             {
                 Result = Common.Result.MakeFail(reason),
                 Path = "",
-                Metadata = default
             };
         }
 
-        public static VideoDownloadResult MakeSuccess(string path, LinkMetadataSchema.Entry metadata)
+        public static VideoDownloadResult MakeSuccess(string path)
         {
             return new VideoDownloadResult
             {
                 Result = Common.Result.MakeSuccess<DownloadFailReason>(),
                 Path = path,
-                Metadata = metadata,
             };
         }
     }
@@ -141,23 +138,6 @@ public class Downloader
         var ytDl = new YoutubeDL
         {
             OutputFolder = Config.Current.TempDownloadsPath
-        };
-
-        var dataResult = await ytDl.RunVideoDataFetch(url, ct:cancellationToken);
-        if (!dataResult.Success)
-        {
-            return VideoDownloadResult.MakeFail(DownloadFailReason.VideoFetchError);
-        }
-
-        
-        string videoId = GetVideoId(dataResult.Data);
-        var metadata = new LinkMetadataSchema.Entry
-        {
-            VideoId = videoId,
-            VideoTitle = dataResult.Data.Title ?? "",
-            VideoAuthor = dataResult.Data.Channel ?? "",
-            OriginalUrl = url,
-            Duration = dataResult.Data.Duration.GetValueOrDefault(0)
         };
         
         var options = new OptionSet()
@@ -171,12 +151,11 @@ public class Downloader
         InnerVideoDownloadResult result = await RunDownloadInner(ytDl, url, options, progress, cancellationToken);
         if (result.Result.Success)
         {
-            return VideoDownloadResult.MakeSuccess(result.Path, metadata);
+            return VideoDownloadResult.MakeSuccess(result.Path);
         }
         
         
-        if (result.Result.FailValue != DownloadFailReason.VideoBotError 
-            || dataResult.Data.Extractor != "youtube")
+        if (result.Result.FailValue != DownloadFailReason.VideoBotError)
         {
             return VideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError);
         }
@@ -187,7 +166,7 @@ public class Downloader
         result = await RunDownloadInner(ytDl, url, options, progress, cancellationToken);
         if (result.Result.Success)
         {
-            return VideoDownloadResult.MakeSuccess(result.Path, metadata);
+            return VideoDownloadResult.MakeSuccess(result.Path);
         }
 
         return VideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError);

@@ -114,14 +114,14 @@ public static class BotHelpers
 
     public static async Task CheckForDownloadResults(DiscordClient client)
     {
-        while (!AsyncQueues.Results.IsEmpty)
+        while (!AsyncQueues.DownloadResults.IsEmpty)
         {
-            AsyncQueues.Results.TryDequeue(out DownloadResult downloadResult);
+            AsyncQueues.DownloadResults.TryDequeue(out DownloadResult downloadResult);
             await UpdateResultMessage(client, downloadResult);
         }
     }
 
-    public static async Task UpdateResultMessage(DiscordClient client, DownloadResult downloadResult)
+    private static async Task UpdateResultMessage(DiscordClient client, DownloadResult downloadResult)
     {
         DiscordUser user = await client.GetUserAsync(downloadResult.UserId);
         DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
@@ -129,9 +129,11 @@ public static class BotHelpers
         
         if (!downloadResult.Result.Success)
         {
-            
+            // Have different versions depending on type
             string failMessageString = GetLinkFailedMessage(downloadResult);
             await message.ModifyAsync(failMessageString);
+            
+            
         }
         else
         {
@@ -151,14 +153,16 @@ public static class BotHelpers
             string messageString = GetLinkMessageString(entry.Value, metadata.Value);
             
             await message.ModifyAsync(messageString);
+
+            await message.CreateReactionAsync(Constants.EmojiToCheck);
         }
     }
 
-    public static async Task CheckForExpiredMessages(DiscordClient client)
+    public static async Task CheckForRemoveMessages(DiscordClient client)
     {
-        while (!AsyncQueues.ExpiredLinkMessages.IsEmpty)
+        while (!AsyncQueues.RemoveMessageQueue.IsEmpty)
         {
-            AsyncQueues.ExpiredLinkMessages.TryDequeue(out LinkRemovedMessage removedMessage);
+            AsyncQueues.RemoveMessageQueue.TryDequeue(out RemoveMessagePayload removedMessage);
             
             DiscordUser user = await client.GetUserAsync(removedMessage.UserId);
             DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();

@@ -27,9 +27,4 @@ public struct Config
     
     public string DiskUrlPrefix;                    // The prefix to use for the on-disk URL
     public string ServerUrlPrefix;                  // The prefix to use for the server URL
-    
-    public string NamedPipeQueue;                   // The name of the IPC pipe to communicate initial queueing 
-    public string NamedPipeDownloadResult;          // The name of the IPC pipe to communicate status message updates
-
-    public int ExpirationDays;                      // The amount of time from creation before the link expires
 }

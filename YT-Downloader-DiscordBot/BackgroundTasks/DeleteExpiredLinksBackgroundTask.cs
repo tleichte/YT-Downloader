@@ -28,13 +28,9 @@ public class DeleteExpiredLinksBackgroundTask
             
             foreach(LinksSchema.Entry expiredLink in expiredLinks)
             {
-                Database.Instance.Mutex.WaitOne();
-                await Database.Instance.RemoveLink(expiredLink.UserId, expiredLink.VideoId);
-                Database.Instance.Mutex.ReleaseMutex();
+                await ActionsHelper.DeleteLink(expiredLink);
                 
-                File.Delete(Helpers.GetVideoDiskFilePath(expiredLink.UserId, expiredLink.VideoId));
-                
-                AsyncQueues.ExpiredLinkMessages.Enqueue(new LinkRemovedMessage
+                AsyncQueues.RemoveMessageQueue.Enqueue(new RemoveMessagePayload
                 {
                     UserId = expiredLink.UserId,
                     MessageId = expiredLink.MessageId,

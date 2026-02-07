@@ -3,6 +3,7 @@ using Common.DatabaseSchemas;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
+using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot;
 
@@ -10,7 +11,26 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
 {
     public async Task HandleEventAsync(DiscordClient sender, MessageReactionAddedEventArgs eventArgs)
     {
-        // TODO
+        if (eventArgs.User.Id == sender.CurrentUser.Id)
+        {
+            return;
+        }
+
+        if (!eventArgs.Emoji.Equals(Constants.EmojiToCheck))
+        {
+            return;
+        }
+
+        LinksSchema.Entry? value = await Database.Instance.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+        if (value == null)
+        {
+            return;
+        }
+
+        await ActionsHelper.DeleteLink(value.Value);
+
+        await eventArgs.Message.DeleteAsync();
+        
         await Task.Yield();
     }
 

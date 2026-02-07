@@ -2,18 +2,11 @@
   "BotToken": "",
   "BotOwnerId": 0,
 
-  "DatabasePath": "db\\yt-downloader.db",
-  "QueueTempPath": "",
+  "DatabasePath": "",
+  "TempDownloadsPath": "",
 
   "CookiesPath": "",
 
   "DiskUrlPrefix": "",
-  "ServerUrlPrefix": "",
-
-  "NamedPipeQueue": "YT-Downloader-Queue-Pipe",
-  "NamedPipeDownloadResult": "YT-Downloader-DownloadResult-Pipe",
-
-  "ThrottleRetryTime": 60,
-
-  "ExpirationDays": 14
+  "ServerUrlPrefix": ""
 }

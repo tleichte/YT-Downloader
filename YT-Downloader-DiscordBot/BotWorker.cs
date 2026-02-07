@@ -30,7 +30,7 @@ public class BotWorker : BackgroundService
         {
             await BotHelpers.TryUpdateQueueMessage(m_client);
             await BotHelpers.CheckForDownloadResults(m_client);
-            await BotHelpers.CheckForExpiredMessages(m_client);
+            await BotHelpers.CheckForRemoveMessages(m_client);
             
             await Task.Delay(3000, stoppingToken); // Update messages max every 3 seconds
         }

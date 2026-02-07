@@ -4,7 +4,7 @@ using Common.DatabaseSchemas;
 
 namespace YT_Downloader_DiscordBot.Helper;
 
-public struct LinkRemovedMessage
+public struct RemoveMessagePayload
 {
     public ulong UserId { get; init; }
     public ulong MessageId { get; init; }
@@ -12,6 +12,6 @@ public struct LinkRemovedMessage
 
 public static class AsyncQueues
 {
-    public static readonly ConcurrentQueue<DownloadResult> Results = new();
-    public static readonly ConcurrentQueue<LinkRemovedMessage> ExpiredLinkMessages = new();
+    public static readonly ConcurrentQueue<DownloadResult> DownloadResults = new();
+    public static readonly ConcurrentQueue<RemoveMessagePayload> RemoveMessageQueue = new();
 }

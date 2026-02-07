@@ -86,6 +86,36 @@ public class QueueDownloaderBackgroundTask
             await Task.Delay(1000, stoppingToken);
         }
     }
+
+    private static async Task DoDownloadFail(QueueSchema.Entry queueEntry, VideoDataResult? videoData, DownloadFailReason failReason)
+    {
+        Database.Instance.Mutex.WaitOne();
+        await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
+        Database.Instance.Mutex.ReleaseMutex();
+        
+        AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateFail(queueEntry, videoData?.Data, failReason));
+    }
+
+    private static async Task DoDownloadSuccess(QueueSchema.Entry queueEntry, VideoDataResult videoData)
+    {
+        Database.Instance.Mutex.WaitOne();
+        
+        await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
+        await Database.Instance.LinksSchema.AddEntry(new LinksSchema.Entry
+        {
+            UserId = queueEntry.UserId,
+            Name = queueEntry.Name,
+            VideoId = videoData.VideoId ?? string.Empty,
+            MessageId = queueEntry.MessageId,
+            DeleteAfter = queueEntry.Persistent
+                ? DateTime.MaxValue
+                : DateTime.Now + TimeSpan.FromDays(Constants.ExpirationDays)
+        });
+        
+        Database.Instance.Mutex.ReleaseMutex();
+        
+        AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateSuccess(queueEntry, videoData.Data));
+    }
     
     private async Task TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
     {
@@ -101,91 +131,57 @@ public class QueueDownloaderBackgroundTask
             {
                 VideoDataResult videoData = await Downloader.RunVideoDataFetchForURL(queueEntry.Url, stoppingToken);
 
-                if (!videoData.Success)
+                if (!videoData.Success || videoData.VideoId == null || videoData.Data == null)
                 {
-                    AsyncQueues.Results.Enqueue(DownloadResult.CreateFail(queueEntry, null, DownloadFailReason.VideoFetchError));                    
+                    await DoDownloadFail(queueEntry, null, DownloadFailReason.VideoFetchError);                    
                     return;
                 }
                 
-                // 
+                string videoId = videoData.VideoId;
+                
                 Database.Instance.Mutex.WaitOne();
                 LinksSchema.Entry[] existingVideoIdEntries = await Database.Instance.LinksSchema.GetEntriesForVideoId(videoData.VideoId ?? string.Empty);
                 Database.Instance.Mutex.ReleaseMutex();
 
                 if (existingVideoIdEntries.Length > 0)
                 {
-                    Database.Instance.Mutex.WaitOne();
-                    await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
-                    Database.Instance.Mutex.ReleaseMutex();
-                    
                     if (existingVideoIdEntries.Any(e => e.UserId == queueEntry.UserId))
                     {
-                        var alreadyDownloadedResult = DownloadResult.CreateFail(queueEntry, videoData.Data,
-                            DownloadFailReason.VideoAlreadyDownloaded);
-                        AsyncQueues.Results.Enqueue(alreadyDownloadedResult);
+                        await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoAlreadyDownloaded);
                         return;
                     }
                     
-                    Database.Instance.Mutex.WaitOne();
-                    await Database.Instance.LinksSchema.AddEntry(new LinksSchema.Entry
-                    {
-                        UserId = queueEntry.UserId,
-                        Name = queueEntry.Name,
-                        VideoId = videoData.VideoId,
-                        MessageId = queueEntry.MessageId,
-                        DeleteAfter = queueEntry.Persistent
-                            ? DateTime.MaxValue
-                            : DateTime.Now + TimeSpan.FromDays(Config.Current.ExpirationDays)
-                    });
-                    Database.Instance.Mutex.ReleaseMutex();
-                    
-                    
                     LinksSchema.Entry existingEntry = existingVideoIdEntries[0];
-                    string prevFilePath = Helpers.GetVideoDiskFilePath(existingEntry.UserId, videoData.VideoId);
-                    string newFilePath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoData.VideoId);
+                    string prevFilePath = Helpers.GetVideoDiskFilePath(existingEntry.UserId, videoId);
+                    string newFilePath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
                     File.Copy(prevFilePath, newFilePath);
-                    AsyncQueues.Results.Enqueue(DownloadResult.CreateSuccess(queueEntry, videoData.Data));
+                    
+                    await DoDownloadSuccess(queueEntry, videoData);
                     return;
                 }
                 
                 Downloader.VideoDownloadResult result = await Downloader.RunDownload(queueEntry.Url, m_progress, cancellationToken:stoppingToken);
                 if (!result.Result.Success)
                 {
-                    Database.Instance.Mutex.WaitOne();
-                    await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
-                    Database.Instance.Mutex.ReleaseMutex();
-                    
-                    AsyncQueues.Results.Enqueue(DownloadResult.CreateFail(queueEntry, videoData.Data, result.Result.FailValue));
-
+                    await DoDownloadFail(queueEntry, videoData, result.Result.FailValue);
                     return;
                 }
-                     
-                string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, result.Metadata.VideoId);
+                
+                string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
                 File.Move(result.Path, moveToPath);
 
                 Database.Instance.Mutex.WaitOne();
-
-                try
+                await Database.Instance.LinkMetadataSchema.AddEntry(new LinkMetadataSchema.Entry
                 {
-                    await Database.Instance.QueueSchema.RemoveFirstQueueEntry();
-                    await Database.Instance.LinksSchema.AddEntry(new LinksSchema.Entry
-                    {
-                        UserId = queueEntry.UserId,
-                        Name = queueEntry.Name,
-                        VideoId = result.Metadata.VideoId,
-                        MessageId = queueEntry.MessageId,
-                        DeleteAfter = queueEntry.Persistent
-                            ? DateTime.MaxValue
-                            : DateTime.Now + TimeSpan.FromDays(Config.Current.ExpirationDays)
-                    });
-                    await Database.Instance.LinkMetadataSchema.AddEntry(result.Metadata);
-                }
-                finally
-                {
-                    Database.Instance.Mutex.ReleaseMutex();
-                }
-                    
-                AsyncQueues.Results.Enqueue(DownloadResult.CreateSuccess(queueEntry, videoData.Data));
+                    VideoId = videoId,
+                    VideoTitle = videoData.Data?.Title ?? string.Empty,
+                    VideoAuthor = videoData.Data?.Channel ?? string.Empty,
+                    OriginalUrl = queueEntry.Url,
+                    Duration = videoData.Data?.Duration ?? 0
+                });
+                Database.Instance.Mutex.ReleaseMutex();
+                
+                await DoDownloadSuccess(queueEntry, videoData);
             }
             catch (Exception e)
             {

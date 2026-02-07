@@ -1,4 +1,6 @@
-﻿namespace YT_Downloader_DiscordBot;
+﻿using DSharpPlus.Entities;
+
+namespace YT_Downloader_DiscordBot;
 
 public static class Constants
 {
@@ -9,4 +11,8 @@ public static class Constants
     
     public const string ModalExpireOptionStandardId = "standard";
     public const string ModalExpireOptionNeverId = "never";
+
+    public const int ExpirationDays = 14;
+    
+    public static readonly DiscordEmoji EmojiToCheck = DiscordEmoji.FromUnicode("❌");
 }

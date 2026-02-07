@@ -40,7 +40,7 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
         parameters.AddULong("$user_id", entry.UserId);
         parameters.AddWithValue("$name", entry.Name);
         parameters.AddWithValue("$video_id", entry.VideoId);
-        parameters.AddWithValue("$message_id", entry.MessageId);
+        parameters.AddULong("$message_id", entry.MessageId);
         parameters.AddWithValue("$delete_after", entry.DeleteAfter);
     }
 
@@ -138,6 +138,19 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
         {
             parameters.AddULong("$user_id", userId);
             parameters.AddWithValue("$name", name);
+        });
+    }
+
+    public async ValueTask<Entry?> GetEntryForMessageId(ulong messageId)
+    {
+        const string QUERY = """
+                             SELECT * FROM Links 
+                             WHERE message_id = $message_id
+                             LIMIT 1;
+                             """;
+        return await GetEntry(QUERY, parameters =>
+        {
+            parameters.AddULong("$message_id", messageId);
         });
     }
 }
