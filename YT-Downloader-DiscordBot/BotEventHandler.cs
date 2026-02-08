@@ -1,4 +1,5 @@
-﻿using Common;
+﻿using System.Text;
+using Common;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;
@@ -101,6 +102,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             DiscordMessage existingMessage = await channel.GetMessageAsync(nameQueueEntry.Value.MessageId);
             var response = $"You already have a video queued with the name {name}!\n{existingMessage.JumpLink}";
             await message.ModifyAsync(response);
+            BotHelpers.RunDeleteAfter(eventArgs.Interaction.User.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
             return;
         }
         
@@ -112,6 +114,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             DiscordMessage existingMessage = await channel.GetMessageAsync(nameLinksEntry.Value.MessageId);
             var response = $"You already have a video with the name {name}!\n{existingMessage.JumpLink}";
             await message.ModifyAsync(response);
+            BotHelpers.RunDeleteAfter(eventArgs.Interaction.User.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
             return;
         }
 
@@ -130,8 +133,15 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         
         Database.Current.Mutex.ReleaseMutex();
         
-        // This will send to queue
-        var successResponse = $"Status: Added `{url}` to queue.";
-        await message.ModifyAsync(successResponse);
+        var builder = new StringBuilder();
+        
+        builder.AppendLine($"## {name}");
+        builder.AppendLine("**Original:**");
+        builder.AppendLine($"`{url}`");
+        builder.AppendLine();
+        builder.AppendLine("**Status:**");
+        builder.AppendLine("_QUEUED_");
+        
+        await message.ModifyAsync(builder.ToString());
     }
 }

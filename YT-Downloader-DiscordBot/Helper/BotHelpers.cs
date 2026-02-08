@@ -23,6 +23,11 @@ public static class BotHelpers
         }
     }
     
+    public static async ValueTask<Uri?> GetJumpLink(DiscordClient client, ulong userId, ulong messageId)
+    {
+        DiscordUser user = await client.GetUserAsync(userId);
+        return await GetJumpLink(user, messageId);
+    }
     public static async ValueTask<Uri?> GetJumpLink(DiscordUser user, ulong messageId)
     {
         DiscordMessage? message = await GetMessage(user, messageId);
@@ -37,7 +42,9 @@ public static class BotHelpers
 
         builder.AppendLine($"**Original:**");
         builder.AppendLine($"`{entry.Url}`");
+        builder.AppendLine();
         
+        builder.AppendLine($"**Status:**");
         string statusString;
         switch (entry.Status)
         {
@@ -53,29 +60,55 @@ public static class BotHelpers
                 break;
         }
         
-        builder.AppendLine($"### Status: _{statusString}_");
+        builder.AppendLine($"_{statusString}_");
         
         return builder.ToString();
     }
 
-    public static string GetLinkFailedMessage(DownloadResult result)
+    private static async ValueTask<string> GetLinkFailedMessage(DiscordClient client, DownloadResult result)
     {
         var builder = new StringBuilder();
+        
         builder.AppendLine($"## {result.Name}");
         builder.AppendLine($"**Original:**");
         builder.AppendLine($"`{result.OriginalUrl}`");
 
-        string failReason;
+        builder.AppendLine($"**FAILED**");
         switch (result.Result.FailValue)
         {
             case DownloadFailReason.VideoFetchError:
-                failReason = "Video does not exist";
+                builder.AppendLine("That URL does not contain a valid video.");
                 break;
+            case DownloadFailReason.VideoBotError:
+            {
+                builder.AppendLine("Video downloads are throttled. Please try again later.");
+                break;
+            }
+            case DownloadFailReason.VideoAlreadyDownloaded:
+            {
+                if (result.VideoId != null)
+                {
+                    Database.Current.Mutex.WaitOne();
+                    LinksSchema.Entry? entryForVideoId = await Database.Current.LinksSchema.GetEntryForVideoId(result.UserId, result.VideoId);
+                    Database.Current.Mutex.ReleaseMutex();
+                    if (entryForVideoId != null)
+                    {
+                        Uri? jumpLink = await GetJumpLink(client, result.UserId, entryForVideoId.Value.MessageId);
+                        builder.AppendLine("You have already downloaded that URL:");
+                        builder.AppendLine($"{jumpLink}");
+                        break;
+                    }
+                }
+                builder.AppendLine("Unknown video download error.");
+                break;
+            }
+            case DownloadFailReason.VideoDownloadError:
             default:
-                failReason = "Download error";
+            {
+                builder.AppendLine("Unknown video download error.");
                 break;
+            }
         }
-        builder.AppendLine($"### FAILED - _{failReason}_");
         
         return builder.ToString();
     }
@@ -103,7 +136,8 @@ public static class BotHelpers
         }
 
         builder.AppendLine($"`{metadata.OriginalUrl}`");
-
+        builder.AppendLine();
+        builder.AppendLine($"**New URL:**");
         builder.AppendLine($"```{Helpers.GetServerUrl(entry.UserId, entry.VideoId)}```");
         
         if (entry.DeleteAfter != DateTime.MaxValue)
@@ -142,6 +176,20 @@ public static class BotHelpers
         }
     }
 
+    public static void RunDeleteAfter(ulong userId, ulong messageId, int minutes)
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromMinutes(minutes));
+                
+            AsyncQueues.RemoveMessageQueue.Enqueue(new RemoveMessagePayload
+            {
+                UserId = userId,
+                MessageId = messageId,
+            });
+        });
+    }
+    
     private static async Task UpdateResultMessage(DiscordClient client, DownloadResult downloadResult)
     {
         DiscordUser user = await client.GetUserAsync(downloadResult.UserId);
@@ -155,8 +203,19 @@ public static class BotHelpers
         if (!downloadResult.Result.Success)
         {
             // Have different versions depending on type
+
+            switch (downloadResult.Result.FailValue)
+            {
+                case DownloadFailReason.VideoAlreadyDownloaded:
+                    
+                    break;
+                case DownloadFailReason.VideoFetchError:
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
             
-            string failMessageString = GetLinkFailedMessage(downloadResult);
+            string failMessageString = await GetLinkFailedMessage(client, downloadResult);
             await message.ModifyAsync(failMessageString);
 
             _ = Task.Run(async () =>
