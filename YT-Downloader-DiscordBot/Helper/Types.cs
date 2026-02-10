@@ -1,19 +1,11 @@
-﻿namespace Common;
+﻿namespace YT_Downloader_DiscordBot.Helper;
 
 public enum QueueStatus
 {
     Queued,
     Downloading,
-    Copying
+    Processing
 }
-
-public enum AddToQueueFailReason
-{
-    None,
-    FailedDb,
-    PipeFail
-}
-
 
 public enum DownloadFailReason
 {

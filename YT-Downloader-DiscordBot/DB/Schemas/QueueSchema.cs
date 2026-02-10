@@ -1,5 +1,5 @@
-﻿using Common;
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
+using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot.DB.Schemas;
 

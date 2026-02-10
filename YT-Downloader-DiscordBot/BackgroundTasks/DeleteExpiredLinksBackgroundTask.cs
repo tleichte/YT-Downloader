@@ -1,5 +1,4 @@
-﻿using Common;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using YT_Downloader_DiscordBot.DB;
 using YT_Downloader_DiscordBot.DB.Schemas;
 using YT_Downloader_DiscordBot.Helper;

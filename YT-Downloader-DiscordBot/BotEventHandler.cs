@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using Common;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using DSharpPlus.EventArgs;

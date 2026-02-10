@@ -1,5 +1,4 @@
-﻿using Common;
-using YT_Downloader_DiscordBot.DB;
+﻿using YT_Downloader_DiscordBot.DB;
 using YT_Downloader_DiscordBot.DB.Schemas;
 
 namespace YT_Downloader_DiscordBot.Helper;

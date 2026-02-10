@@ -1,5 +1,4 @@
 ﻿using System.Text;
-using Common;
 using DSharpPlus;
 using DSharpPlus.Entities;
 using YT_Downloader_DiscordBot.DB;
@@ -52,8 +51,10 @@ public static class BotHelpers
                 statusString = "QUEUED";
                 break;
             case QueueStatus.Downloading:
-            case QueueStatus.Copying:
                 statusString = $"IN PROGRESS - {entry.Progress}";
+                break;
+            case QueueStatus.Processing:
+                statusString = "PROCESSING... (This could take a while)";
                 break;
             default:
                 statusString = "UNKNOWN";

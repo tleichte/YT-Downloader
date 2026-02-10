@@ -1,10 +1,11 @@
-﻿using System.Text;
-using Common;
+﻿using System.Diagnostics;
+using System.Text;
+using ByteSizeLib;
 using Microsoft.Extensions.Logging;
+using YT_Downloader_DiscordBot.CF;
 using YT_Downloader_DiscordBot.DB;
 using YT_Downloader_DiscordBot.DB.Schemas;
 using YT_Downloader_DiscordBot.Helper;
-using YT_Downloader_Service;
 
 namespace YT_Downloader_DiscordBot.BackgroundTasks;
 
@@ -167,9 +168,39 @@ public class QueueDownloaderBackgroundTask
                     await DoDownloadFail(queueEntry, videoData, result.Result.FailValue);
                     return;
                 }
+
+                Database.Current.Mutex.WaitOne();
+                await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Processing, queueEntry.UserId, queueEntry.Name);
+                Database.Current.Mutex.ReleaseMutex();
+
+                string path = result.Path;
+                long bytes = new FileInfo(path).Length;
+                ByteSize size = ByteSize.FromBytes(bytes);
+                if (size.MegaBytes > 500)
+                {
+                    // Remove auto square brackets that yt-dlp places on
+                    string tempPath = path.Replace("[", string.Empty).Replace("]", string.Empty);
+                    File.Move(path, tempPath);
+                    path = tempPath;
+                    
+                    string outputPath = path.Replace(".mp4", "-processed.mp4");
+                    Result<ProcessingFailReason> processingResult = await RunProcessing(path, outputPath);
+                    if (processingResult.Success)
+                    {
+                        if (File.Exists(outputPath))
+                        {
+                            File.Delete(path);
+                            path = outputPath;
+                        }
+                    }
+                    else
+                    {
+                        File.Delete(outputPath);
+                    }
+                }
                 
                 string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
-                File.Move(result.Path, moveToPath);
+                File.Move(path, moveToPath);
 
                 Database.Current.Mutex.WaitOne();
                 await Database.Current.LinkMetadataSchema.AddEntry(new LinkMetadataSchema.Entry
@@ -190,5 +221,51 @@ public class QueueDownloaderBackgroundTask
             }
         }, stoppingToken);
         
+    }
+
+    private enum ProcessingFailReason
+    {
+        None,
+        NoProcess,
+        ProcessFail,
+    }
+    
+    private async ValueTask<Result<ProcessingFailReason>> RunProcessing(string path, string outputPath)
+    {
+        int errorLevel;
+        ProcessStartInfo processInfo;
+        Process? process;
+
+        var arguments = new StringBuilder();
+        arguments.Append("-ExecutionPolicy Bypass ");
+        arguments.Append($"-File \"{Config.Current.ProcessingScriptPath}\" ");
+        arguments.Append(string.Format(Config.Current.ProcessingScriptArguments, path, outputPath));
+
+        processInfo = new ProcessStartInfo("powershell.exe", arguments.ToString())
+        {
+            //CreateNoWindow = true,
+            UseShellExecute = false
+        };
+
+        process = Process.Start(processInfo);
+        if (process == null)
+        {
+            return Result.MakeFail(ProcessingFailReason.NoProcess);
+        }
+
+        await Task.Run(() =>
+        {
+            process.WaitForExit();
+        });
+
+        errorLevel = process.ExitCode;
+        process.Close();
+
+        if (errorLevel != 0)
+        {
+            return Result.MakeFail(ProcessingFailReason.ProcessFail);
+        }
+        
+        return Result.MakeSuccess<ProcessingFailReason>();
     }
 }

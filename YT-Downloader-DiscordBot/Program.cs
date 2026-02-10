@@ -1,6 +1,5 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
-using Common;
 using DSharpPlus;
 using DSharpPlus.Commands;
 using DSharpPlus.Extensions;

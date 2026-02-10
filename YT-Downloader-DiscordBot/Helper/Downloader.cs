@@ -1,10 +1,8 @@
-﻿using Common;
-using YoutubeDLSharp;
+﻿using YoutubeDLSharp;
 using YoutubeDLSharp.Metadata;
 using YoutubeDLSharp.Options;
 using YT_Downloader_DiscordBot.CF;
 using YT_Downloader_DiscordBot.DB.Schemas;
-using YT_Downloader_Service;
 
 namespace YT_Downloader_DiscordBot.Helper;
 
@@ -25,7 +23,7 @@ public struct DownloadResult
         OriginalUrl = entry.Url,
         MessageId = entry.MessageId,
         VideoId = videoData != null ? Downloader.GetVideoId(videoData) : null,
-        Result = Common.Result.MakeSuccess<DownloadFailReason>()
+        Result = Helper.Result.MakeSuccess<DownloadFailReason>()
     };
     
     
@@ -36,7 +34,7 @@ public struct DownloadResult
         OriginalUrl = entry.Url,
         MessageId = entry.MessageId,
         VideoId = videoData != null ? Downloader.GetVideoId(videoData) : null,
-        Result = Common.Result.MakeFail(failReason)
+        Result = Helper.Result.MakeFail(failReason)
     };
 }
 
@@ -95,7 +93,7 @@ public class Downloader
         {
             return new InnerVideoDownloadResult
             {
-                Result = Common.Result.MakeSuccess<DownloadFailReason>(),
+                Result = Helper.Result.MakeSuccess<DownloadFailReason>(),
                 Path = path,
             };
         }
@@ -104,7 +102,7 @@ public class Downloader
         {
             return new InnerVideoDownloadResult
             {
-                Result = Common.Result.MakeFail(reason)
+                Result = Helper.Result.MakeFail(reason)
             };
         }
     }
@@ -118,7 +116,7 @@ public class Downloader
         {
             return new VideoDownloadResult
             {
-                Result = Common.Result.MakeFail(reason),
+                Result = Helper.Result.MakeFail(reason),
                 Path = "",
             };
         }
@@ -127,7 +125,7 @@ public class Downloader
         {
             return new VideoDownloadResult
             {
-                Result = Common.Result.MakeSuccess<DownloadFailReason>(),
+                Result = Helper.Result.MakeSuccess<DownloadFailReason>(),
                 Path = path,
             };
         }
