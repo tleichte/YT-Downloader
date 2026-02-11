@@ -18,7 +18,24 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         }
 
         if (!eventArgs.Emoji.Equals(Constants.EmojiToCheck))
-        {
+        {            
+            if (eventArgs.Emoji.Equals(Constants.SafetyDeleteEmoji))
+            {
+                LinksSchema.Entry? linksCheck = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+                QueueSchema.Entry? queueCheck = await Database.Current.QueueSchema.GetEntryForMessageId(eventArgs.Message.Id);
+                if (linksCheck != null || queueCheck != null)
+                {
+                    return;
+                }
+                try
+                {
+                    await eventArgs.Message.DeleteAsync();
+                }
+                catch (Exception)
+                {
+                    // ignored
+                }
+            }
             return;
         }
 

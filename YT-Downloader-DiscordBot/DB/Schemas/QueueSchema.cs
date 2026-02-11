@@ -125,4 +125,15 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
             parameters.AddWithValue("$name", name);
         });
     }
+
+    public async ValueTask<Entry?> GetEntryForMessageId(ulong messageId)
+    {
+        const string QUERY = """
+                             SELECT * FROM Queue WHERE message_id = $message_id LIMIT 1;
+                             """;
+        return await GetEntry(QUERY, parameters =>
+        {
+            parameters.AddULong("$message_id", messageId);
+        });
+    }
 }

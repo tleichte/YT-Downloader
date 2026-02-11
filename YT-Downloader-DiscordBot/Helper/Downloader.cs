@@ -74,7 +74,18 @@ public class Downloader
         var dataResult = await ytDl.RunVideoDataFetch(url, ct:cancellationToken);
         if (!dataResult.Success)
         {
-            return VideoDataResult.MakeFail(); 
+            if (dataResult.ErrorOutput.Any(s => s.Contains("Sign in")))
+            {
+                OptionSet options = new()
+                {
+                    Cookies = Config.Current.CookiesPath
+                };
+                dataResult = await ytDl.RunVideoDataFetch(url, overrideOptions:options, ct:cancellationToken);
+                if (!dataResult.Success)
+                {
+                    return VideoDataResult.MakeFail();
+                }
+            }
         }
         return VideoDataResult.MakeSuccess(dataResult.Data);
     }
@@ -181,7 +192,19 @@ public class Downloader
         }
         
         string[] errorOutput = res.ErrorOutput;
-        if (errorOutput.Length == 1 && errorOutput[0].Contains("Sign in"))
+
+        // Special case - sometimes data blocks aren't "found" and video is still fine. Return true in this case
+        if (errorOutput.All(s => string.IsNullOrEmpty(s) || s.Contains("ERROR: Did not get any data blocks")))
+        {
+            return InnerVideoDownloadResult.MakeSuccess(res.Data);
+        }
+        
+        if (File.Exists(res.Data))
+        {
+            File.Delete(res.Data);
+        }
+        
+        if (errorOutput.Any(s => s.Contains("Sign in")))
         {
             return InnerVideoDownloadResult.MakeFail(DownloadFailReason.VideoBotError);
         }

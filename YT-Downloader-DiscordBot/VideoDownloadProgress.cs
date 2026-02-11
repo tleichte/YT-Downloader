@@ -10,7 +10,7 @@ public class VideoDownloadProgress : IProgress<DownloadProgress>
     
     public void Report(DownloadProgress value)
     {
-        Progress = GetProgressValue(value);
+        Progress = MathF.Max(Progress, GetProgressValue(value));
         ETA = value.ETA;
     }
 

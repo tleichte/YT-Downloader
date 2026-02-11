@@ -17,4 +17,5 @@ public static class Constants
     public const int ErrorMessageTimeoutMinutes = 1;
     
     public static readonly DiscordEmoji EmojiToCheck = DiscordEmoji.FromUnicode("❌");
+    public static readonly DiscordEmoji SafetyDeleteEmoji = DiscordEmoji.FromUnicode("🆑");
 }

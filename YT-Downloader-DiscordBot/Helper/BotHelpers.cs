@@ -51,7 +51,7 @@ public static class BotHelpers
                 statusString = "QUEUED";
                 break;
             case QueueStatus.Downloading:
-                statusString = $"IN PROGRESS - {entry.Progress}";
+                statusString = $"DOWNLOADING - {entry.Progress}";
                 break;
             case QueueStatus.Processing:
                 statusString = "PROCESSING... (This could take a while)";
@@ -78,7 +78,7 @@ public static class BotHelpers
         switch (result.Result.FailValue)
         {
             case DownloadFailReason.VideoFetchError:
-                builder.AppendLine("That URL does not contain a valid video.");
+                builder.AppendLine("That URL does not contain a valid video, or the bot is on cooldown. Please try again in a bit.");
                 break;
             case DownloadFailReason.VideoBotError:
             {
@@ -204,17 +204,6 @@ public static class BotHelpers
         if (!downloadResult.Result.Success)
         {
             // Have different versions depending on type
-
-            switch (downloadResult.Result.FailValue)
-            {
-                case DownloadFailReason.VideoAlreadyDownloaded:
-                    
-                    break;
-                case DownloadFailReason.VideoFetchError:
-                    break;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
             
             string failMessageString = await GetLinkFailedMessage(client, downloadResult);
             await message.ModifyAsync(failMessageString);
@@ -265,13 +254,20 @@ public static class BotHelpers
     {
         while (!AsyncQueues.RemoveMessageQueue.IsEmpty)
         {
-            AsyncQueues.RemoveMessageQueue.TryDequeue(out RemoveMessagePayload removedMessage);
+            try
+            {
+                AsyncQueues.RemoveMessageQueue.TryDequeue(out RemoveMessagePayload removedMessage);
             
-            DiscordUser user = await client.GetUserAsync(removedMessage.UserId);
-            DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
-            DiscordMessage message = await dmChannelAsync.GetMessageAsync(removedMessage.MessageId);
+                DiscordUser user = await client.GetUserAsync(removedMessage.UserId);
+                DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
+                DiscordMessage message = await dmChannelAsync.GetMessageAsync(removedMessage.MessageId);
 
-            await message.DeleteAsync();
+                await message.DeleteAsync();
+            }
+            catch (Exception)
+            {
+                //
+            }
         }
     }
 }

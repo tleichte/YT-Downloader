@@ -106,13 +106,15 @@ public class Commands
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
     public async Task BedtimeCommand(SlashCommandContext ctx)
     {
+        await ctx.DeferResponseAsync(true);
+        
         if (ctx.User.Id != Config.Current.BotOwnerId)
         {
-            await ctx.RespondAsync("You're not the boss of me!");
+            await ctx.EditResponseAsync("You're not the boss of me!");
             return;
         }
         
-        await ctx.RespondAsync(":wave:");
+        await ctx.EditResponseAsync(":wave:");
         ctx.Client.Dispose();
         Environment.Exit(0);
     }
