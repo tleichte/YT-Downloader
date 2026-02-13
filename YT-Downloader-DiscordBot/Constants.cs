@@ -15,6 +15,9 @@ public static class Constants
     public const int ExpirationDays = 14;
 
     public const int ErrorMessageTimeoutMinutes = 1;
+
+    public const int MaxVideoDurationInMinutes = 150;
+    public const int MaxVideoDurationInSeconds = MaxVideoDurationInMinutes * 60;
     
     public static readonly DiscordEmoji EmojiToCheck = DiscordEmoji.FromUnicode("❌");
     public static readonly DiscordEmoji SafetyDeleteEmoji = DiscordEmoji.FromUnicode("🆑");

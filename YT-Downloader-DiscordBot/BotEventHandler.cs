@@ -18,23 +18,26 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         }
 
         if (!eventArgs.Emoji.Equals(Constants.EmojiToCheck))
-        {            
-            if (eventArgs.Emoji.Equals(Constants.SafetyDeleteEmoji))
+        {
+            if (!eventArgs.Emoji.Equals(Constants.SafetyDeleteEmoji))
             {
-                LinksSchema.Entry? linksCheck = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
-                QueueSchema.Entry? queueCheck = await Database.Current.QueueSchema.GetEntryForMessageId(eventArgs.Message.Id);
-                if (linksCheck != null || queueCheck != null)
-                {
-                    return;
-                }
-                try
-                {
-                    await eventArgs.Message.DeleteAsync();
-                }
-                catch (Exception)
-                {
-                    // ignored
-                }
+                return;
+            }
+            
+            LinksSchema.Entry? linksCheck = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+            QueueSchema.Entry? queueCheck = await Database.Current.QueueSchema.GetEntryForMessageId(eventArgs.Message.Id);
+            if (linksCheck != null || queueCheck != null)
+            {
+                return;
+            }
+            
+            try
+            {
+                await eventArgs.Message.DeleteAsync();
+            }
+            catch (Exception)
+            {
+                // ignored
             }
             return;
         }
@@ -107,6 +110,15 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         
         string preQueueMessage = $"Adding `{url}` to queue...";
         DiscordMessage message = await eventArgs.Interaction.User.SendMessageAsync(preQueueMessage);
+        
+        // Check if valid URL
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            var response = $"`{url}` is not a valid URL!";
+            await message.ModifyAsync(response);
+            BotHelpers.RunDeleteAfter(eventArgs.Interaction.User.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+        }
         
         ulong userId = eventArgs.Interaction.User.Id;
         

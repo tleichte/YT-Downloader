@@ -135,7 +135,13 @@ public class QueueDownloaderBackgroundTask
 
                 if (!videoData.Success || videoData.VideoId == null || videoData.Data == null)
                 {
-                    await DoDownloadFail(queueEntry, null, DownloadFailReason.VideoFetchError);                    
+                    await DoDownloadFail(queueEntry, null, DownloadFailReason.VideoFetchError);
+                    return;
+                }
+
+                if (videoData.Data.Duration >= Constants.MaxVideoDurationInSeconds)
+                {
+                    await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoTooLong);
                     return;
                 }
                 
@@ -176,7 +182,9 @@ public class QueueDownloaderBackgroundTask
                 string path = result.Path;
                 long bytes = new FileInfo(path).Length;
                 ByteSize size = ByteSize.FromBytes(bytes);
-                if (size.MegaBytes > 500)
+                const float TOLERANCE = 0.15f;
+                const int MEGABYTE_SIZE = 500;
+                if (size.MegaBytes > MEGABYTE_SIZE * (1 + TOLERANCE))
                 {
                     // Remove auto square brackets that yt-dlp places on
                     string tempPath = path.Replace("[", string.Empty).Replace("]", string.Empty);
@@ -243,10 +251,11 @@ public class QueueDownloaderBackgroundTask
 
         processInfo = new ProcessStartInfo("powershell.exe", arguments.ToString())
         {
-            //CreateNoWindow = true,
-            UseShellExecute = false
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
         };
-
+        
         process = Process.Start(processInfo);
         if (process == null)
         {

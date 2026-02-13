@@ -11,6 +11,7 @@ public enum DownloadFailReason
 {
     None,
     VideoFetchError,
+    VideoTooLong,
     VideoBotError,
     VideoDownloadError,
     VideoAlreadyDownloaded,

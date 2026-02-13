@@ -119,4 +119,22 @@ public class Commands
         Environment.Exit(0);
     }
     
+    [Command("reload_config")]
+    [Description("[ADMIN] Shuts down the bot")]
+    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
+    public async Task ReloadCommand(SlashCommandContext ctx)
+    {
+        await ctx.DeferResponseAsync(true);
+        
+        if (ctx.User.Id != Config.Current.BotOwnerId)
+        {
+            await ctx.EditResponseAsync("You're not the boss of me!");
+            return;
+        }
+        
+        Config.Create();
+
+        await ctx.EditResponseAsync("Reloaded config.");
+    }
+    
 }

@@ -85,6 +85,11 @@ public static class BotHelpers
                 builder.AppendLine("Video downloads are throttled. Please try again later.");
                 break;
             }
+            case DownloadFailReason.VideoTooLong:
+            {
+                builder.AppendLine($@"Video is too long! Max video length: {TimeSpan.FromMinutes(Constants.MaxVideoDurationInMinutes):h\:mm\:ss}");
+                break;
+            }
             case DownloadFailReason.VideoAlreadyDownloaded:
             {
                 if (result.VideoId != null)
@@ -162,6 +167,15 @@ public static class BotHelpers
         DiscordUser user = await client.GetUserAsync(entry.Value.UserId);
         DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
         DiscordMessage message = await dmChannelAsync.GetMessageAsync(entry.Value.MessageId);
+
+        if (entry.Value.Status == QueueStatus.Processing)
+        {
+            if (message.Content.Contains("PROCESSING"))
+            {
+                // Don't re-update a message that has processing already
+                return;
+            }
+        }
         
         string messageString = GetQueueMessage(entry.Value);
         
