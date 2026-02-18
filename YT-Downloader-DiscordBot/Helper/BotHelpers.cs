@@ -48,7 +48,10 @@ public static class BotHelpers
         switch (entry.Status)
         {
             case QueueStatus.Queued:
-                statusString = "QUEUED";
+                statusString = "QUEUED...";
+                break;
+            case QueueStatus.Fetching:
+                statusString = "FETCHING...";
                 break;
             case QueueStatus.Downloading:
                 statusString = $"DOWNLOADING - {entry.Progress}";
@@ -106,12 +109,20 @@ public static class BotHelpers
                     }
                 }
                 builder.AppendLine("Unknown video download error.");
+                foreach (string error in result.ErrorMessages)
+                {
+                    builder.AppendLine($"`{error}`");
+                }
                 break;
             }
             case DownloadFailReason.VideoDownloadError:
             default:
             {
                 builder.AppendLine("Unknown video download error.");
+                foreach (string error in result.ErrorMessages)
+                {
+                    builder.AppendLine($"`{error}`");
+                }
                 break;
             }
         }
@@ -154,8 +165,9 @@ public static class BotHelpers
         
         return builder.ToString();
     }
-    
-    
+
+
+    private static QueueSchema.Entry _prevEntryValue;
     public static async Task TryUpdateQueueMessage(DiscordClient client)
     {
         QueueSchema.Entry? entry = await Database.Current.QueueSchema.GetFirstEntry();
@@ -163,7 +175,19 @@ public static class BotHelpers
         {
             return;
         }
+
+        if (entry.Value.MessageId ==  _prevEntryValue.MessageId &&
+            entry.Value.Status == _prevEntryValue.Status &&
+            entry.Value.Progress == _prevEntryValue.Progress)
+        {
+            // Don't update message if it matches the previous cached entry value
+            return;
+        }
+
+        _prevEntryValue = entry.Value;
         
+            
+            
         DiscordUser user = await client.GetUserAsync(entry.Value.UserId);
         DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
         DiscordMessage message = await dmChannelAsync.GetMessageAsync(entry.Value.MessageId);

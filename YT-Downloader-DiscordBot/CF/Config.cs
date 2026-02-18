@@ -22,7 +22,9 @@ public struct Config
 
     public string DatabasePath;                     // The path to where the database file is stored
     public string TempDownloadsPath;                // The path to where temporary youtube download files are stored 
+    public string DownloadOutputPath;               // The path to where download outputs are stored
 
+    public bool ShouldAlwaysUseCookies;             // Whether the bot should always use cookies as opposed to a fallback (timeout issue?)
     public string CookiesPath;                      // The path to the cookies file for yt-dlp
     
     public string ProcessingScriptPath;             // The path for the powershell script that does script processing

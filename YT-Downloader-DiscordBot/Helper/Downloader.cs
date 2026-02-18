@@ -15,6 +15,7 @@ public struct DownloadResult
     public string? VideoId;
 
     public Result<DownloadFailReason> Result;
+    public string[] ErrorMessages;
 
     public static DownloadResult CreateSuccess(QueueSchema.Entry entry, VideoData? videoData) => new()
     {
@@ -23,18 +24,20 @@ public struct DownloadResult
         OriginalUrl = entry.Url,
         MessageId = entry.MessageId,
         VideoId = videoData != null ? Downloader.GetVideoId(videoData) : null,
-        Result = Helper.Result.MakeSuccess<DownloadFailReason>()
+        Result = Helper.Result.MakeSuccess<DownloadFailReason>(),
+        ErrorMessages = []
     };
     
     
-    public static DownloadResult CreateFail(QueueSchema.Entry entry, VideoData? videoData, DownloadFailReason failReason) => new()
+    public static DownloadResult CreateFail(QueueSchema.Entry entry, VideoData? videoData, DownloadFailReason failReason, string[] errorMessages) => new()
     {
         UserId = entry.UserId,
         Name = entry.Name,
         OriginalUrl = entry.Url,
         MessageId = entry.MessageId,
         VideoId = videoData != null ? Downloader.GetVideoId(videoData) : null,
-        Result = Helper.Result.MakeFail(failReason)
+        Result = Helper.Result.MakeFail(failReason),
+        ErrorMessages = errorMessages
     };
 }
 
@@ -71,23 +74,31 @@ public class Downloader
             OutputFolder = Config.Current.TempDownloadsPath
         };
 
-        var dataResult = await ytDl.RunVideoDataFetch(url, ct:cancellationToken);
-        if (!dataResult.Success)
+        const int MAX_TRIES = 2;
+        var runCount = 0;
+        while (++runCount <= MAX_TRIES)
         {
-            if (dataResult.ErrorOutput.Any(s => s.Contains("Sign in")))
+            var usedCookies = false;
+            OptionSet options = new();
+            if (Config.Current.ShouldAlwaysUseCookies || runCount > 1)
             {
-                OptionSet options = new()
-                {
-                    Cookies = Config.Current.CookiesPath
-                };
-                dataResult = await ytDl.RunVideoDataFetch(url, overrideOptions:options, ct:cancellationToken);
-                if (!dataResult.Success)
-                {
-                    return VideoDataResult.MakeFail();
-                }
+                options.Cookies = Config.Current.CookiesPath;
+                usedCookies = true;
+            }
+            
+            RunResult<VideoData>? dataResult = await ytDl.RunVideoDataFetch(url, overrideOptions:options, ct:cancellationToken);
+            if (dataResult.Success)
+            {
+                return VideoDataResult.MakeSuccess(dataResult.Data);
+            }
+            
+            if (usedCookies || !dataResult.ErrorOutput.Any(s => s.Contains("Sign in")))
+            {
+                return VideoDataResult.MakeFail();
             }
         }
-        return VideoDataResult.MakeSuccess(dataResult.Data);
+        
+        return VideoDataResult.MakeFail();
     }
     
     public static string GetVideoId(VideoData videoData)
@@ -99,6 +110,7 @@ public class Downloader
     {
         public Result<DownloadFailReason> Result { get; private set; }
         public string Path { get; private set; }
+        public string[] ErrorMessages { get; private set; }
         
         public static InnerVideoDownloadResult MakeSuccess(string path)
         {
@@ -106,14 +118,16 @@ public class Downloader
             {
                 Result = Helper.Result.MakeSuccess<DownloadFailReason>(),
                 Path = path,
+                ErrorMessages = []
             };
         }
         
-        public static InnerVideoDownloadResult MakeFail(DownloadFailReason reason)
+        public static InnerVideoDownloadResult MakeFail(DownloadFailReason reason, string[] errorMessages)
         {
             return new InnerVideoDownloadResult
             {
-                Result = Helper.Result.MakeFail(reason)
+                Result = Helper.Result.MakeFail(reason),
+                ErrorMessages = errorMessages
             };
         }
     }
@@ -122,13 +136,15 @@ public class Downloader
     {
         public Result<DownloadFailReason> Result { get; private set; }
         public string Path { get; private set; }
+        public string[] ErrorMessages { get; private set; }
 
-        public static VideoDownloadResult MakeFail(DownloadFailReason reason)
+        public static VideoDownloadResult MakeFail(DownloadFailReason reason, string[] errorMessages)
         {
             return new VideoDownloadResult
             {
                 Result = Helper.Result.MakeFail(reason),
                 Path = "",
+                ErrorMessages = errorMessages,
             };
         }
 
@@ -138,54 +154,58 @@ public class Downloader
             {
                 Result = Helper.Result.MakeSuccess<DownloadFailReason>(),
                 Path = path,
+                ErrorMessages = []
             };
         }
     }
     
-    public static async ValueTask<VideoDownloadResult> RunDownload(string url, VideoDownloadProgress progress, CancellationToken cancellationToken)
+    public static async ValueTask<VideoDownloadResult> RunDownload(string url, VideoDownloadProgress progress, VideoDownloadOutput output, CancellationToken cancellationToken)
     {
-
         var ytDl = new YoutubeDL
         {
             OutputFolder = Config.Current.TempDownloadsPath
         };
         
-        var options = new OptionSet()
+        const int MAX_TRIES = 2;
+        int runCount = 0;
+        while (++runCount <= MAX_TRIES)
         {
-            NoContinue = true,
-            RestrictFilenames = true,
-            RecodeVideo = VideoRecodeFormat.Mp4,
-            Format = FormatString,
-        };
-        
-        InnerVideoDownloadResult result = await RunDownloadInner(ytDl, url, options, progress, cancellationToken);
-        if (result.Result.Success)
-        {
-            return VideoDownloadResult.MakeSuccess(result.Path);
-        }
-        
-        
-        if (result.Result.FailValue != DownloadFailReason.VideoBotError)
-        {
-            return VideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError);
-        }
-            
-        // Retry with cookies if download fail reason is because of a bot detect
-        
-        options.Cookies = Config.Current.CookiesPath;
-        result = await RunDownloadInner(ytDl, url, options, progress, cancellationToken);
-        if (result.Result.Success)
-        {
-            return VideoDownloadResult.MakeSuccess(result.Path);
-        }
+            var options = new OptionSet()
+            {
+                NoContinue = true,
+                RestrictFilenames = true,
+                RecodeVideo = VideoRecodeFormat.Mp4,
+                Format = FormatString,
+            };
 
-        return VideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError);
+            var usedCookies = false;
+            if (Config.Current.ShouldAlwaysUseCookies || runCount > 1)
+            {
+                options.Cookies = Config.Current.CookiesPath;
+                usedCookies = true;
+            }
+            
+            InnerVideoDownloadResult result = await RunDownloadInner(ytDl, url, options, progress, output, cancellationToken);
+            
+            if (result.Result.Success)
+            {
+                output.RemoveOutput();
+                return VideoDownloadResult.MakeSuccess(result.Path);
+            }
+            
+            // Failed after using cookies or not from bot detection, return out of here 
+            if (usedCookies || result.Result.FailValue != DownloadFailReason.VideoBotError)
+            {
+                return VideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError, result.ErrorMessages);
+            }
+        }
+        return VideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError, []);
     }
 
 
-    private static async ValueTask<InnerVideoDownloadResult> RunDownloadInner(YoutubeDL ytDl, string url, OptionSet optionSet, VideoDownloadProgress progress, CancellationToken cancellationToken)
+    private static async ValueTask<InnerVideoDownloadResult> RunDownloadInner(YoutubeDL ytDl, string url, OptionSet optionSet, VideoDownloadProgress progress, VideoDownloadOutput output, CancellationToken cancellationToken)
     {
-        RunResult<string>? res = await ytDl.RunVideoDownload(url, overrideOptions: optionSet, progress:progress, ct: cancellationToken);
+        RunResult<string>? res = await ytDl.RunVideoDownload(url,overrideOptions:optionSet, progress:progress, output:output, ct: cancellationToken);
         if (res.Success)
         {
             return InnerVideoDownloadResult.MakeSuccess(res.Data);
@@ -206,10 +226,10 @@ public class Downloader
         
         if (errorOutput.Any(s => s.Contains("Sign in")))
         {
-            return InnerVideoDownloadResult.MakeFail(DownloadFailReason.VideoBotError);
+            return InnerVideoDownloadResult.MakeFail(DownloadFailReason.VideoBotError, errorOutput);
         }
 
-        return InnerVideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError);
+        return InnerVideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError, errorOutput);
     }
     
 }

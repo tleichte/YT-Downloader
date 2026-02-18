@@ -63,6 +63,11 @@ public abstract class DatabaseSchema<T> where T : struct
     
     private async Task<T?> ParseSingleEntry(SqliteDataReader reader)
     {
+        if (!reader.HasRows)
+        {
+            return null;
+        }
+        
         if (!await reader.ReadAsync())
         {
             return null;

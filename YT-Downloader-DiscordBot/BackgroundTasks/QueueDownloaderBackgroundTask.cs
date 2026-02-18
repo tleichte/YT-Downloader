@@ -12,6 +12,7 @@ namespace YT_Downloader_DiscordBot.BackgroundTasks;
 public class QueueDownloaderBackgroundTask
 {
     private VideoDownloadProgress m_progress;
+    private VideoDownloadOutput m_output;
     private ILogger<BotWorker> m_logger;
     
     public void Start(ILogger<BotWorker> logger, CancellationToken stoppingToken)
@@ -48,6 +49,7 @@ public class QueueDownloaderBackgroundTask
                         {
                             // Start video download
                             m_progress = new VideoDownloadProgress();
+                            m_output = new VideoDownloadOutput($@"{Config.Current.DownloadOutputPath}\{entry.Value.UserId}-{entry.Value.MessageId}.txt");
                             await TryRunDownload(entry.Value, stoppingToken);
                             break;
                         }
@@ -95,7 +97,7 @@ public class QueueDownloaderBackgroundTask
         await Database.Current.QueueSchema.RemoveFirstQueueEntry();
         Database.Current.Mutex.ReleaseMutex();
         
-        AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateFail(queueEntry, videoData?.Data, failReason));
+        AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateFail(queueEntry, videoData?.Data, failReason, []));
     }
 
     private static async Task DoDownloadSuccess(QueueSchema.Entry queueEntry, VideoDataResult videoData)
@@ -122,7 +124,7 @@ public class QueueDownloaderBackgroundTask
     private async Task TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
     {
         Database.Current.Mutex.WaitOne();
-        await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
+        await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Fetching, queueEntry.UserId, queueEntry.Name);
         Database.Current.Mutex.ReleaseMutex();
         
         Directory.CreateDirectory(Helpers.GetVideoDiskFolderPathForUser(queueEntry.UserId));
@@ -168,7 +170,11 @@ public class QueueDownloaderBackgroundTask
                     return;
                 }
                 
-                Downloader.VideoDownloadResult result = await Downloader.RunDownload(queueEntry.Url, m_progress, cancellationToken:stoppingToken);
+                Database.Current.Mutex.WaitOne();
+                await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
+                Database.Current.Mutex.ReleaseMutex();
+                
+                Downloader.VideoDownloadResult result = await Downloader.RunDownload(queueEntry.Url, m_progress, m_output, cancellationToken:stoppingToken);
                 if (!result.Result.Success)
                 {
                     await DoDownloadFail(queueEntry, videoData, result.Result.FailValue);

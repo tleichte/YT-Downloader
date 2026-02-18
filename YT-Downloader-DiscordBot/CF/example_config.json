@@ -4,8 +4,10 @@
 
   "DatabasePath": "",
   "TempDownloadsPath": "",
+  "DownloadOutputPath": "",
 
   "CookiesPath": "",
+  "ShouldAlwaysUseCookies": false,
 
   "DiskUrlPrefix": "",
   "ServerUrlPrefix": ""

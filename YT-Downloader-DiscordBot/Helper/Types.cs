@@ -3,6 +3,7 @@
 public enum QueueStatus
 {
     Queued,
+    Fetching,
     Downloading,
     Processing
 }
