@@ -170,7 +170,10 @@ public static class BotHelpers
     private static QueueSchema.Entry _prevEntryValue;
     public static async Task TryUpdateQueueMessage(DiscordClient client)
     {
+        Database.Current.Mutex.WaitOne();
         QueueSchema.Entry? entry = await Database.Current.QueueSchema.GetFirstEntry();
+        Database.Current.Mutex.ReleaseMutex();
+        
         if (entry == null || entry.Value.Status == QueueStatus.Queued)
         {
             return;

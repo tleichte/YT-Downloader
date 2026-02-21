@@ -23,9 +23,11 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             {
                 return;
             }
-            
+
+            Database.Current.Mutex.WaitOne();
             LinksSchema.Entry? linksCheck = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
             QueueSchema.Entry? queueCheck = await Database.Current.QueueSchema.GetEntryForMessageId(eventArgs.Message.Id);
+            Database.Current.Mutex.ReleaseMutex();
             if (linksCheck != null || queueCheck != null)
             {
                 return;
@@ -42,7 +44,10 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
             return;
         }
 
+        Database.Current.Mutex.WaitOne();
         LinksSchema.Entry? value = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+        Database.Current.Mutex.ReleaseMutex();
+        
         if (value == null)
         {
             return;
@@ -123,7 +128,9 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         ulong userId = eventArgs.Interaction.User.Id;
         
         // Check if name already exists in queue
+        Database.Current.Mutex.WaitOne();
         QueueSchema.Entry? nameQueueEntry = await Database.Current.QueueSchema.GetEntryForName(userId, name);
+        Database.Current.Mutex.ReleaseMutex();
         if (nameQueueEntry != null)
         {
             DiscordDmChannel channel = await eventArgs.Interaction.User.CreateDmChannelAsync();
@@ -135,7 +142,9 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         }
         
         // Check if name already exists in links
+        Database.Current.Mutex.WaitOne();
         LinksSchema.Entry? nameLinksEntry = await Database.Current.LinksSchema.GetEntryForName(userId, name);
+        Database.Current.Mutex.ReleaseMutex();
         if (nameLinksEntry != null)
         {
             DiscordDmChannel channel = await eventArgs.Interaction.User.CreateDmChannelAsync();

@@ -56,7 +56,7 @@ public abstract class DatabaseSchema<T> where T : struct
     protected async Task<T?> GetEntry(string queryText, Action<SqliteParameterCollection> addParams)
     {
         await using var command = new SqliteCommand(queryText, m_connection);
-        addParams(command.Parameters);
+        addParams?.Invoke(command.Parameters);
         await using SqliteDataReader reader = await command.ExecuteReaderAsync();
         return await ParseSingleEntry(reader);
     }
