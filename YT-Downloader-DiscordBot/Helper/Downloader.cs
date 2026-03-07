@@ -67,7 +67,7 @@ public class Downloader
 {
     private const string FormatString = "best[height<=1080]";
 
-    public static async ValueTask<VideoDataResult> RunVideoDataFetchForURL(string url, CancellationToken cancellationToken)
+    public static async ValueTask<VideoDataResult> RunVideoDataFetchForURL(string url, VideoDownloadOutput output, CancellationToken cancellationToken)
     {
         var ytDl = new YoutubeDL
         {
@@ -90,6 +90,11 @@ public class Downloader
             if (dataResult.Success)
             {
                 return VideoDataResult.MakeSuccess(dataResult.Data);
+            }
+            
+            foreach (string error in dataResult.ErrorOutput)
+            {
+                output.Report(error);
             }
             
             if (usedCookies || !dataResult.ErrorOutput.Any(s => s.Contains("Sign in")))

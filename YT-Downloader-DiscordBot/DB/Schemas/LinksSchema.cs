@@ -166,4 +166,17 @@ public class LinksSchema : DatabaseSchema<LinksSchema.Entry>
             parameters.AddWithValue("$old_name", oldName);
         });
     }
+
+    public async Task SetDeleteAfter(ulong userId, string name, DateTime deleteAfter)
+    {
+        const string COMMAND = """
+                               UPDATE Links SET delete_after = $delete_after where user_id = $user_id and name = $name
+                               """;
+        await Execute(COMMAND, parameters =>
+        {
+            parameters.AddWithValue("$delete_after", deleteAfter);
+            parameters.AddWithValue("$name", name);
+            parameters.AddULong("$user_id", userId);
+        });
+    }
 }

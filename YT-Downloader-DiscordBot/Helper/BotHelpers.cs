@@ -154,8 +154,8 @@ public static class BotHelpers
 
         builder.AppendLine($"`{metadata.OriginalUrl}`");
         builder.AppendLine();
-        builder.AppendLine($"**New URL:**");
-        builder.AppendLine($"```{Helpers.GetServerUrl(entry.UserId, entry.VideoId)}```");
+        builder.AppendLine("**New URL:**");
+        builder.AppendLine($"{Helpers.GetServerUrl(entry.UserId, entry.VideoId)}");
         
         if (entry.DeleteAfter != DateTime.MaxValue)
         {

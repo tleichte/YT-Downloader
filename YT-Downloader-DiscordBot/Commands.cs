@@ -120,7 +120,7 @@ public class Commands
     }
     
     [Command("reload_config")]
-    [Description("[ADMIN] Shuts down the bot")]
+    [Description("[ADMIN] Reloads the config file for on-the-fly configuration updates")]
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
     public async Task ReloadCommand(SlashCommandContext ctx)
     {
@@ -136,5 +136,59 @@ public class Commands
 
         await ctx.EditResponseAsync("Reloaded config.");
     }
-    
+
+    [Command("extend")]
+    [Description("Refreshes a link's expiration counter. Can optionally change to never expire.")]
+    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM)]
+    public async Task ExtendCommand(SlashCommandContext ctx, string name, bool permanent = false)
+    {
+        await ctx.DeferResponseAsync(true);
+
+        Database.Current.Mutex.WaitOne();
+        LinksSchema.Entry? entry = await Database.Current.LinksSchema.GetEntryForName(ctx.User.Id, name);
+        Database.Current.Mutex.ReleaseMutex();
+        
+        if (entry == null)
+        {
+            await ctx.EditResponseAsync($"No entry exists with the name {name}!");
+            return;
+        }
+
+        if (entry.Value.DeleteAfter == DateTime.MaxValue)
+        {
+            await ctx.EditResponseAsync($"The link with name *{name}* is already permanent!");
+        }
+
+        DateTime newDeleteAfter =
+            permanent ? DateTime.MaxValue : DateTime.Now + TimeSpan.FromDays(Constants.ExpirationDays); 
+        
+        Database.Current.Mutex.WaitOne();
+        await Database.Current.LinksSchema.SetDeleteAfter(ctx.User.Id, name, newDeleteAfter);
+        LinksSchema.Entry? newEntry = await Database.Current.LinksSchema.GetEntryForName(ctx.User.Id, name);
+        Database.Current.Mutex.ReleaseMutex();
+        
+        if (newEntry == null)
+        {
+            await ctx.EditResponseAsync($"Failed to extend _{name}_!");
+            return;
+        }
+        
+        DiscordMessage? message = await BotHelpers.GetMessage(ctx.User, newEntry.Value.MessageId);
+        if (message == null)
+        {
+            return;
+        }
+
+        await BotHelpers.UpdateMessageForLink(message, newEntry.Value);
+
+        if (permanent)
+        {
+            await ctx.EditResponseAsync($"Successfully set _{name}_ to never expire!\n{message.JumpLink}");
+        }
+        else
+        {
+            var seconds = (int)(newEntry.Value.DeleteAfter.ToUniversalTime() - DateTime.UnixEpoch).TotalSeconds;
+            await ctx.EditResponseAsync($"Successfully extended the expiration of _{name}_ to <t:{seconds}:f>!\n{message.JumpLink}");
+        }
+    }
 }

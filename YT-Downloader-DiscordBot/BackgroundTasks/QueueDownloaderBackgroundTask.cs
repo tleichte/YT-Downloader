@@ -133,7 +133,7 @@ public class QueueDownloaderBackgroundTask
         {
             try
             {
-                VideoDataResult videoData = await Downloader.RunVideoDataFetchForURL(queueEntry.Url, stoppingToken);
+                VideoDataResult videoData = await Downloader.RunVideoDataFetchForURL(queueEntry.Url, m_output, stoppingToken);
 
                 if (!videoData.Success || videoData.VideoId == null || videoData.Data == null)
                 {
