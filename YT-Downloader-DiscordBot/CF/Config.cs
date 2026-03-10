@@ -29,6 +29,8 @@ public struct Config
     
     public string ProcessingScriptPath;             // The path for the powershell script that does script processing
     public string ProcessingScriptArguments;        // The arguments to use for the processing script. Includes {0} and {1} for input and output path
+    public int TargetProcessingSize;                // The size to process files at in MB
+    public float TargetProcessingTolerance;         // The tolerance for target processing amount (ie 15% of TargetProcessingSize)
     
     public string DiskUrlPrefix;                    // The prefix to use for the on-disk URL
     public string ServerUrlPrefix;                  // The prefix to use for the server URL

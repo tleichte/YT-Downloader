@@ -6,6 +6,10 @@
   "TempDownloadsPath": "",
   "DownloadOutputPath": "",
 
+  "ProcessingScriptPath": "8mb.ps1",
+  "ProcessingScriptArguments": "\"{0}\" 1024 MB 1.0 60 \"{1}\"",
+  "TargetProcessingSize": 1024,
+  
   "CookiesPath": "",
   "ShouldAlwaysUseCookies": false,
 

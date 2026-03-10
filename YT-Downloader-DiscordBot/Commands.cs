@@ -34,6 +34,25 @@ public class Commands
         await ctx.RespondWithModalAsync(modalBuilder);
     }
 
+    [Command("save_file")]
+    [Description("Saves a file to the media server. Must be of type mp4")]
+    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM, DiscordInteractionContextType.Guild)]
+    public async Task SaveFileCommand(SlashCommandContext ctx, DiscordAttachment attachment)
+    {
+        await ctx.RespondAsync("This command is still WIP! Check back later.", ephemeral: true);
+        return;
+        
+        await ctx.DeferResponseAsync(true);
+    
+        if (attachment.MediaType != "video/mp4")
+        {
+            await ctx.EditResponseAsync("Given file is not an mp4!");
+            return;
+        }
+        
+        await ctx.DeleteResponseAsync();
+    }
+    
     [Command("find")]
     [Description("Attepts to find link messages that match the given name.")]
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM, DiscordInteractionContextType.Guild)]

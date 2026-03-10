@@ -188,9 +188,9 @@ public class QueueDownloaderBackgroundTask
                 string path = result.Path;
                 long bytes = new FileInfo(path).Length;
                 ByteSize size = ByteSize.FromBytes(bytes);
-                const float TOLERANCE = 0.15f;
-                const int MEGABYTE_SIZE = 500;
-                if (size.MegaBytes > MEGABYTE_SIZE * (1 + TOLERANCE))
+                float tolerance = Config.Current.TargetProcessingTolerance;
+                int targetSize = Config.Current.TargetProcessingSize;
+                if (size.MegaBytes > targetSize * (1 + tolerance))
                 {
                     // Remove auto square brackets that yt-dlp places on
                     string tempPath = path.Replace("[", string.Empty).Replace("]", string.Empty);
