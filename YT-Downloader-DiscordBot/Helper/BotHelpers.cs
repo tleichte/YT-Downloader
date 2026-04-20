@@ -9,6 +9,135 @@ namespace YT_Downloader_DiscordBot.Helper;
 public static class BotHelpers
 {
 
+    public static async Task AddToQueue(string url, string name, bool persistent, DiscordUser user)
+    {
+        string preQueueMessage = $"Adding `{url}` to queue...";
+        DiscordMessage message = await user.SendMessageAsync(preQueueMessage);
+        
+        // Check if valid URL
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            var response = $"`{url}` is not a valid URL!";
+            await message.ModifyAsync(response);
+            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+            return;
+        }
+        
+        ulong userId = user.Id;
+        
+        // Check if name already exists in queue
+        Database.Current.Mutex.WaitOne();
+        QueueSchema.Entry? nameQueueEntry = await Database.Current.QueueSchema.GetEntryForName(userId, name);
+        Database.Current.Mutex.ReleaseMutex();
+        if (nameQueueEntry != null)
+        {
+            DiscordDmChannel channel = await user.CreateDmChannelAsync();
+            DiscordMessage existingMessage = await channel.GetMessageAsync(nameQueueEntry.Value.MessageId);
+            var response = $"You already have a video queued with the name {name}!\n{existingMessage.JumpLink}";
+            await message.ModifyAsync(response);
+            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+            return;
+        }
+        
+        // Check if name already exists in links
+        Database.Current.Mutex.WaitOne();
+        LinksSchema.Entry? nameLinksEntry = await Database.Current.LinksSchema.GetEntryForName(userId, name);
+        Database.Current.Mutex.ReleaseMutex();
+        if (nameLinksEntry != null)
+        {
+            DiscordDmChannel channel = await user.CreateDmChannelAsync();
+            DiscordMessage existingMessage = await channel.GetMessageAsync(nameLinksEntry.Value.MessageId);
+            var response = $"You already have a video with the name {name}!\n{existingMessage.JumpLink}";
+            await message.ModifyAsync(response);
+            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+            return;
+        }
+
+        Database.Current.Mutex.WaitOne();
+
+        await Database.Current.QueueSchema.AddEntry(new QueueSchema.Entry
+        {
+            UserId = userId,
+            Name = name,
+            Url = url,
+            MessageId = message.Id,
+            Persistent = persistent,
+            Status = QueueStatus.Queued,
+            Progress = ""
+        });
+        
+        Database.Current.Mutex.ReleaseMutex();
+        
+        var builder = new StringBuilder();
+        
+        builder.AppendLine($"## {name}");
+        builder.AppendLine("**Original:**");
+        builder.AppendLine($"`{url}`");
+        builder.AppendLine();
+        builder.AppendLine("**Status:**");
+        builder.AppendLine("_QUEUED_");
+        
+        await message.ModifyAsync(builder.ToString());
+    }
+
+    public static async Task AddToMP3Queue(string url, DiscordUser user)
+    {
+        string preQueueMessage = $"Adding `{url}` to queue...";
+        DiscordMessage message = await user.SendMessageAsync(preQueueMessage);
+        
+        // Check if valid URL
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            var response = $"`{url}` is not a valid URL!";
+            await message.ModifyAsync(response);
+            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+            return;
+        }
+        
+        ulong userId = user.Id;
+        
+        // Check if name already exists in queue
+        Database.Current.Mutex.WaitOne();
+        MP3QueueSchema.Entry? urlQueueEntry = await Database.Current.MP3QueueSchema.GetEntryForUrl(userId, url);
+        Database.Current.Mutex.ReleaseMutex();
+        if (urlQueueEntry != null)
+        {
+            DiscordDmChannel channel = await user.CreateDmChannelAsync();
+            DiscordMessage existingMessage = await channel.GetMessageAsync(urlQueueEntry.Value.MessageId);
+            var response = $"You already have an mp3 download queued with that url!\n{existingMessage.JumpLink}";
+            await message.ModifyAsync(response);
+            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+            return;
+        }
+
+        Database.Current.Mutex.WaitOne();
+
+        await Database.Current.MP3QueueSchema.AddEntry(new MP3QueueSchema.Entry
+        {
+            UserId = userId,
+            Url = url,
+            MessageId = message.Id,
+            Status = QueueStatus.Queued,
+            Progress = ""
+        });
+        
+        Database.Current.Mutex.ReleaseMutex();
+        
+        var builder = new StringBuilder();
+        
+        builder.AppendLine($"## MP3 Download");
+        builder.AppendLine("**Original:**");
+        builder.AppendLine($"`{url}`");
+        builder.AppendLine();
+        builder.AppendLine("**Status:**");
+        builder.AppendLine("_QUEUED_");
+        
+        await message.ModifyAsync(builder.ToString());
+    }
+    
+    
     public static async ValueTask<DiscordMessage?> GetMessage(DiscordUser user, ulong messageId)
     {
         try
@@ -38,6 +167,42 @@ public static class BotHelpers
         var builder = new StringBuilder();
 
         builder.AppendLine($"## {entry.Name}");
+
+        builder.AppendLine($"**Original:**");
+        builder.AppendLine($"`{entry.Url}`");
+        builder.AppendLine();
+        
+        builder.AppendLine($"**Status:**");
+        string statusString;
+        switch (entry.Status)
+        {
+            case QueueStatus.Queued:
+                statusString = "QUEUED...";
+                break;
+            case QueueStatus.Fetching:
+                statusString = "FETCHING...";
+                break;
+            case QueueStatus.Downloading:
+                statusString = $"DOWNLOADING - {entry.Progress}";
+                break;
+            case QueueStatus.Processing:
+                statusString = "PROCESSING... (This could take a while)";
+                break;
+            default:
+                statusString = "UNKNOWN";
+                break;
+        }
+        
+        builder.AppendLine($"_{statusString}_");
+        
+        return builder.ToString();
+    }
+    
+    public static string GetMP3QueueMessage(MP3QueueSchema.Entry entry)
+    {
+        var builder = new StringBuilder();
+
+        builder.AppendLine($"## MP3 Download Result");
 
         builder.AppendLine($"**Original:**");
         builder.AppendLine($"`{entry.Url}`");
@@ -129,6 +294,67 @@ public static class BotHelpers
         
         return builder.ToString();
     }
+    
+    private static async ValueTask<string> GetMP3LinkFailedMessage(DiscordClient client, MP3DownloadResult result)
+    {
+        var builder = new StringBuilder();
+        
+        builder.AppendLine($"## MP3 Download Result");
+        builder.AppendLine($"**Original:**");
+        builder.AppendLine($"`{result.OriginalUrl}`");
+
+        builder.AppendLine($"**FAILED**");
+        switch (result.Result.FailValue)
+        {
+            case DownloadFailReason.VideoFetchError:
+                builder.AppendLine("That URL does not contain a valid video, or the bot is on cooldown. Please try again in a bit.");
+                break;
+            case DownloadFailReason.VideoBotError:
+            {
+                builder.AppendLine("Video downloads are throttled. Please try again later.");
+                break;
+            }
+            case DownloadFailReason.VideoTooLong:
+            {
+                builder.AppendLine($@"Video is too long! Max video length: {TimeSpan.FromMinutes(Constants.MaxVideoDurationInMinutes):h\:mm\:ss}");
+                break;
+            }
+            case DownloadFailReason.VideoAlreadyDownloaded:
+            {
+                if (result.VideoId != null)
+                {
+                    Database.Current.Mutex.WaitOne();
+                    MP3LinksSchema.Entry? entryForVideoId = await Database.Current.MP3LinksSchema.GetEntryForVideoId(result.UserId, result.VideoId);
+                    Database.Current.Mutex.ReleaseMutex();
+                    if (entryForVideoId != null)
+                    {
+                        Uri? jumpLink = await GetJumpLink(client, result.UserId, entryForVideoId.Value.MessageId);
+                        builder.AppendLine("You have already downloaded that URL:");
+                        builder.AppendLine($"{jumpLink}");
+                        break;
+                    }
+                }
+                builder.AppendLine("Unknown video download error.");
+                foreach (string error in result.ErrorMessages)
+                {
+                    builder.AppendLine($"`{error}`");
+                }
+                break;
+            }
+            case DownloadFailReason.VideoDownloadError:
+            default:
+            {
+                builder.AppendLine("Unknown video download error.");
+                foreach (string error in result.ErrorMessages)
+                {
+                    builder.AppendLine($"`{error}`");
+                }
+                break;
+            }
+        }
+        
+        return builder.ToString();
+    }
 
     public static string GetLinkMessageString(LinksSchema.Entry entry, LinkMetadataSchema.Entry metadata)
     {
@@ -156,6 +382,28 @@ public static class BotHelpers
         builder.AppendLine();
         builder.AppendLine("**New URL:**");
         builder.AppendLine($"{Helpers.GetServerUrl(entry.UserId, entry.VideoId)}");
+        
+        if (entry.DeleteAfter != DateTime.MaxValue)
+        {
+            int seconds = (int)(entry.DeleteAfter.ToUniversalTime() - DateTime.UnixEpoch).TotalSeconds;
+            builder.AppendLine($"Expires: <t:{seconds}:f>");
+        }
+        
+        return builder.ToString();
+    }
+    
+    public static string GetMP3LinkMessageString(MP3LinksSchema.Entry entry)
+    {
+        var builder = new StringBuilder();
+
+        builder.AppendLine($"## MP3 Download Result");
+        
+        builder.AppendLine($"**Original:**");
+
+        builder.AppendLine($"`{entry.Url}`");
+        builder.AppendLine();
+        builder.AppendLine("**MP3 URL:**");
+        builder.AppendLine($"{Helpers.GetMP3ServerUrl(entry.UserId, entry.VideoId)}");
         
         if (entry.DeleteAfter != DateTime.MaxValue)
         {
@@ -208,6 +456,37 @@ public static class BotHelpers
         
         await message.ModifyAsync(messageString);
     }
+    
+    private static MP3QueueSchema.Entry _prevMP3EntryValue;
+    public static async Task TryUpdateMP3QueueMessage(DiscordClient client)
+    {
+        Database.Current.Mutex.WaitOne();
+        MP3QueueSchema.Entry? entry = await Database.Current.MP3QueueSchema.GetFirstEntry();
+        Database.Current.Mutex.ReleaseMutex();
+        
+        if (entry == null || entry.Value.Status == QueueStatus.Queued)
+        {
+            return;
+        }
+
+        if (entry.Value.MessageId ==  _prevEntryValue.MessageId &&
+            entry.Value.Status == _prevEntryValue.Status &&
+            entry.Value.Progress == _prevEntryValue.Progress)
+        {
+            // Don't update message if it matches the previous cached entry value
+            return;
+        }
+
+        _prevMP3EntryValue = entry.Value;
+            
+        DiscordUser user = await client.GetUserAsync(entry.Value.UserId);
+        DiscordDmChannel dmChannelAsync = await user.CreateDmChannelAsync();
+        DiscordMessage message = await dmChannelAsync.GetMessageAsync(entry.Value.MessageId);
+        
+        string messageString = GetMP3QueueMessage(entry.Value);
+        
+        await message.ModifyAsync(messageString);
+    }
 
     public static async Task CheckForDownloadResults(DiscordClient client)
     {
@@ -215,6 +494,15 @@ public static class BotHelpers
         {
             AsyncQueues.DownloadResults.TryDequeue(out DownloadResult downloadResult);
             await UpdateResultMessage(client, downloadResult);
+        }
+    }
+
+    public static async Task CheckForMP3DownloadResults(DiscordClient client)
+    {
+        while (!AsyncQueues.MP3DownloadResults.IsEmpty)
+        {
+            AsyncQueues.MP3DownloadResults.TryDequeue(out MP3DownloadResult downloadResult);
+            await UpdateMP3ResultMessage(client, downloadResult);
         }
     }
 
@@ -276,6 +564,50 @@ public static class BotHelpers
         await message.CreateReactionAsync(Constants.EmojiToCheck);
     }
     
+    private static async Task UpdateMP3ResultMessage(DiscordClient client, MP3DownloadResult downloadResult)
+    {
+        DiscordUser user = await client.GetUserAsync(downloadResult.UserId);
+        
+        DiscordMessage? message = await GetMessage(user, downloadResult.MessageId);
+        if (message == null)
+        {
+            return;
+        }
+        
+        if (!downloadResult.Result.Success)
+        {
+            // Have different versions depending on type
+            
+            string failMessageString = await GetMP3LinkFailedMessage(client, downloadResult);
+            await message.ModifyAsync(failMessageString);
+
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromMinutes(Constants.ErrorMessageTimeoutMinutes));
+                
+                AsyncQueues.RemoveMessageQueue.Enqueue(new RemoveMessagePayload
+                {
+                    UserId = downloadResult.UserId,
+                    MessageId = downloadResult.MessageId,
+                });
+            });
+
+            return;
+        }
+        
+        Database.Current.Mutex.WaitOne();
+        MP3LinksSchema.Entry? entry = await Database.Current.MP3LinksSchema.GetEntryForVideoId(downloadResult.UserId, downloadResult.VideoId);
+        Database.Current.Mutex.ReleaseMutex();
+        if (entry == null)
+        {
+            return;
+        }
+        
+        await UpdateMessageForMP3Link(message, entry.Value);
+
+        await message.CreateReactionAsync(Constants.EmojiToCheck);
+    }
+    
     public static async Task UpdateMessageForLink(DiscordMessage message, LinksSchema.Entry entry)
     {
         Database.Current.Mutex.WaitOne();
@@ -288,6 +620,12 @@ public static class BotHelpers
         }
         
         string messageString = GetLinkMessageString(entry, metadata.Value);
+        await message.ModifyAsync(messageString);
+    }
+    
+    public static async Task UpdateMessageForMP3Link(DiscordMessage message, MP3LinksSchema.Entry entry)
+    {
+        string messageString = GetMP3LinkMessageString(entry);
         await message.ModifyAsync(messageString);
     }
     
@@ -311,4 +649,6 @@ public static class BotHelpers
             }
         }
     }
+    
+    
 }

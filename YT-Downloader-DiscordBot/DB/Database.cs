@@ -37,7 +37,9 @@ public class Database
         m_connection.Open();
         
         QueueSchema = new QueueSchema(m_connection);
+        MP3QueueSchema = new MP3QueueSchema(m_connection);
         LinksSchema = new LinksSchema(m_connection);
+        MP3LinksSchema = new MP3LinksSchema(m_connection);
         LinkMetadataSchema = new LinkMetadataSchema(m_connection);
 
     }
@@ -47,7 +49,9 @@ public class Database
     }
 
     public readonly QueueSchema QueueSchema;
+    public readonly MP3QueueSchema MP3QueueSchema;
     public readonly LinksSchema LinksSchema;
+    public readonly MP3LinksSchema MP3LinksSchema;
     public readonly LinkMetadataSchema LinkMetadataSchema;
     
     private void InitializeDb()
@@ -56,7 +60,9 @@ public class Database
         string[] createTableCommands =
         [
             QueueSchema.CreateTableCommand,
+            MP3QueueSchema.CreateTableCommand,
             LinksSchema.CreateTableCommand,
+            MP3LinksSchema.CreateTableCommand,
             LinkMetadataSchema.CreateTableCommand,
         ];
 

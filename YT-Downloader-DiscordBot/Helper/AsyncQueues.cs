@@ -11,5 +11,6 @@ public struct RemoveMessagePayload
 public static class AsyncQueues
 {
     public static readonly ConcurrentQueue<DownloadResult> DownloadResults = new();
+    public static readonly ConcurrentQueue<MP3DownloadResult> MP3DownloadResults = new();
     public static readonly ConcurrentQueue<RemoveMessagePayload> RemoveMessageQueue = new();
 }

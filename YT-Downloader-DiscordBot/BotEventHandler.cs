@@ -45,19 +45,31 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         }
 
         Database.Current.Mutex.WaitOne();
-        LinksSchema.Entry? value = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+        LinksSchema.Entry? existingLink = await Database.Current.LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
         Database.Current.Mutex.ReleaseMutex();
         
-        if (value == null)
+        if (existingLink != null)
         {
-            return;
+            await ActionsHelper.DeleteLink(existingLink.Value);
+
+            await eventArgs.Message.DeleteAsync();
+            
+            await Task.Yield();
         }
 
-        await ActionsHelper.DeleteLink(value.Value);
-
-        await eventArgs.Message.DeleteAsync();
+        Database.Current.Mutex.WaitOne();
+        MP3LinksSchema.Entry? existingMP3Link = await Database.Current.MP3LinksSchema.GetEntryForMessageId(eventArgs.Message.Id);
+        Database.Current.Mutex.ReleaseMutex();
         
-        await Task.Yield();
+        if (existingMP3Link != null)
+        {
+            await ActionsHelper.DeleteMP3Link(existingMP3Link.Value);
+
+            await eventArgs.Message.DeleteAsync();
+            
+            await Task.Yield();
+        }
+        
     }
 
     private static bool TryGetModalTextValue(string key, ModalSubmittedEventArgs eventArgs, out string? value)
@@ -91,7 +103,6 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
     
     public async Task HandleEventAsync(DiscordClient sender, ModalSubmittedEventArgs eventArgs)
     {
-
         await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.DeferredMessageUpdate);
         
         if (!TryGetModalTextValue(Constants.ModalURLId, eventArgs, out string? urlModalValue))
@@ -112,73 +123,7 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         string url = urlModalValue ?? "";
         string name = nameModalValue ?? "";
         bool persistent = expiresModalValue?.Count == 1 && expiresModalValue[0] == Constants.ModalExpireOptionNeverId;
-        
-        string preQueueMessage = $"Adding `{url}` to queue...";
-        DiscordMessage message = await eventArgs.Interaction.User.SendMessageAsync(preQueueMessage);
-        
-        // Check if valid URL
-        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            var response = $"`{url}` is not a valid URL!";
-            await message.ModifyAsync(response);
-            BotHelpers.RunDeleteAfter(eventArgs.Interaction.User.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
-        }
-        
-        ulong userId = eventArgs.Interaction.User.Id;
-        
-        // Check if name already exists in queue
-        Database.Current.Mutex.WaitOne();
-        QueueSchema.Entry? nameQueueEntry = await Database.Current.QueueSchema.GetEntryForName(userId, name);
-        Database.Current.Mutex.ReleaseMutex();
-        if (nameQueueEntry != null)
-        {
-            DiscordDmChannel channel = await eventArgs.Interaction.User.CreateDmChannelAsync();
-            DiscordMessage existingMessage = await channel.GetMessageAsync(nameQueueEntry.Value.MessageId);
-            var response = $"You already have a video queued with the name {name}!\n{existingMessage.JumpLink}";
-            await message.ModifyAsync(response);
-            BotHelpers.RunDeleteAfter(eventArgs.Interaction.User.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
-            return;
-        }
-        
-        // Check if name already exists in links
-        Database.Current.Mutex.WaitOne();
-        LinksSchema.Entry? nameLinksEntry = await Database.Current.LinksSchema.GetEntryForName(userId, name);
-        Database.Current.Mutex.ReleaseMutex();
-        if (nameLinksEntry != null)
-        {
-            DiscordDmChannel channel = await eventArgs.Interaction.User.CreateDmChannelAsync();
-            DiscordMessage existingMessage = await channel.GetMessageAsync(nameLinksEntry.Value.MessageId);
-            var response = $"You already have a video with the name {name}!\n{existingMessage.JumpLink}";
-            await message.ModifyAsync(response);
-            BotHelpers.RunDeleteAfter(eventArgs.Interaction.User.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
-            return;
-        }
 
-        Database.Current.Mutex.WaitOne();
-
-        await Database.Current.QueueSchema.AddEntry(new QueueSchema.Entry
-        {
-            UserId = userId,
-            Name = name,
-            Url = url,
-            MessageId = message.Id,
-            Persistent = persistent,
-            Status = QueueStatus.Queued,
-            Progress = ""
-        });
-        
-        Database.Current.Mutex.ReleaseMutex();
-        
-        var builder = new StringBuilder();
-        
-        builder.AppendLine($"## {name}");
-        builder.AppendLine("**Original:**");
-        builder.AppendLine($"`{url}`");
-        builder.AppendLine();
-        builder.AppendLine("**Status:**");
-        builder.AppendLine("_QUEUED_");
-        
-        await message.ModifyAsync(builder.ToString());
+        await BotHelpers.AddToQueue(url, name, persistent, eventArgs.Interaction.User);
     }
 }

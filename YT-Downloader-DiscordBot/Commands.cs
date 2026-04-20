@@ -35,20 +35,40 @@ public class Commands
     }
 
     [Command("save_file")]
-    [Description("Saves a file to the media server. Must be of type mp4")]
+    [Description("Saves a file to the media server. Must be a video type. Limited by your Nitro upload maximum.")]
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM, DiscordInteractionContextType.Guild)]
-    public async Task SaveFileCommand(SlashCommandContext ctx, DiscordAttachment attachment)
+    public async Task SaveFileCommand(SlashCommandContext ctx, DiscordAttachment attachment, string name, ExpirationPolicy expirationPolicy)
     {
+        // TODO remove when command is confirmed working
         await ctx.RespondAsync("This command is still WIP! Check back later.", ephemeral: true);
         return;
         
         await ctx.DeferResponseAsync(true);
-    
-        if (attachment.MediaType != "video/mp4")
+
+        if (!attachment.MediaType?.StartsWith("video") ?? false)
         {
-            await ctx.EditResponseAsync("Given file is not an mp4!");
+            await ctx.EditResponseAsync("Provided attachment is not a video!");
             return;
         }
+
+        if (attachment.Url == null)
+        {
+            await ctx.EditResponseAsync("Couldn't parse the attachment!");
+            return;
+        }
+        
+        await BotHelpers.AddToQueue(attachment.Url, name, expirationPolicy == ExpirationPolicy.Never, ctx.User);
+        await ctx.DeleteResponseAsync();
+    }
+
+    [Command("save_mp3")]
+    [Description("Converts a video link to mp3. Provides a temp download link when complete.")]
+    [InteractionAllowedContexts(DiscordInteractionContextType.BotDM, DiscordInteractionContextType.Guild)]
+    public async Task SaveMP3Command(SlashCommandContext ctx, string url)
+    {
+        await ctx.DeferResponseAsync(true);
+        
+        await BotHelpers.AddToMP3Queue(url, ctx.User);
         
         await ctx.DeleteResponseAsync();
     }

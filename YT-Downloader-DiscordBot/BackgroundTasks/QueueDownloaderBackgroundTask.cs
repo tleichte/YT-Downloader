@@ -25,262 +25,262 @@ public class QueueDownloaderBackgroundTask
     }
     
     private async Task Run(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                Database.Current.Mutex.WaitOne();
-                QueueSchema.Entry? entry;
-                try
-                {
-                    entry = await Database.Current.QueueSchema.GetFirstEntry();
-                }
-                finally
-                {
-                    Database.Current.Mutex.ReleaseMutex();
-                }
-
-                if (entry != null)
-                {
-                    switch (entry.Value.Status)
-                    {
-                        case QueueStatus.Queued:
-                        {
-                            // Start video download
-                            m_progress = new VideoDownloadProgress();
-                            m_output = new VideoDownloadOutput($@"{Config.Current.DownloadOutputPath}\{entry.Value.UserId}-{entry.Value.MessageId}.txt");
-                            await TryRunDownload(entry.Value, stoppingToken);
-                            break;
-                        }
-                        case QueueStatus.Downloading:
-                        {
-                            if (m_progress != null)
-                            {
-                                StringBuilder progressString = new();
-                                progressString.Append($"{(m_progress.Progress * 100):0.#}%");
-                                if (!string.IsNullOrEmpty(m_progress.ETA))
-                                {
-                                    progressString.Append($" - ({m_progress.ETA})");
-                                }
-
-                                Database.Current.Mutex.WaitOne();
-                                try
-                                {
-                                    await Database.Current.QueueSchema.SetQueueProgress(entry.Value.UserId,
-                                        entry.Value.Name,
-                                        progressString.ToString());
-                                }
-                                finally
-                                {
-                                    Database.Current.Mutex.ReleaseMutex();
-                                }
-                            }
-
-                            break;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                m_logger.LogError(ex, "Error while running Queue Background Task!");
-            }
-            
-            await Task.Delay(1000, stoppingToken);
-        }
-    }
-
-    private static async Task DoDownloadFail(QueueSchema.Entry queueEntry, VideoDataResult? videoData, DownloadFailReason failReason)
-    {
-        Database.Current.Mutex.WaitOne();
-        await Database.Current.QueueSchema.RemoveFirstQueueEntry();
-        Database.Current.Mutex.ReleaseMutex();
-        
-        AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateFail(queueEntry, videoData?.Data, failReason, []));
-    }
-
-    private static async Task DoDownloadSuccess(QueueSchema.Entry queueEntry, VideoDataResult videoData)
-    {
-        Database.Current.Mutex.WaitOne();
-        
-        await Database.Current.QueueSchema.RemoveFirstQueueEntry();
-        await Database.Current.LinksSchema.AddEntry(new LinksSchema.Entry
-        {
-            UserId = queueEntry.UserId,
-            Name = queueEntry.Name,
-            VideoId = videoData.VideoId ?? string.Empty,
-            MessageId = queueEntry.MessageId,
-            DeleteAfter = queueEntry.Persistent
-                ? DateTime.MaxValue
-                : DateTime.Now + TimeSpan.FromDays(Constants.ExpirationDays)
-        });
-        
-        Database.Current.Mutex.ReleaseMutex();
-        
-        AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateSuccess(queueEntry, videoData.Data));
-    }
-    
-    private async Task TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
-    {
-        Database.Current.Mutex.WaitOne();
-        await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Fetching, queueEntry.UserId, queueEntry.Name);
-        Database.Current.Mutex.ReleaseMutex();
-        
-        Directory.CreateDirectory(Helpers.GetVideoDiskFolderPathForUser(queueEntry.UserId));
-        
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                VideoDataResult videoData = await Downloader.RunVideoDataFetchForURL(queueEntry.Url, m_output, stoppingToken);
-
-                if (!videoData.Success || videoData.VideoId == null || videoData.Data == null)
-                {
-                    await DoDownloadFail(queueEntry, null, DownloadFailReason.VideoFetchError);
-                    return;
-                }
-
-                if (videoData.Data.Duration >= Constants.MaxVideoDurationInSeconds)
-                {
-                    await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoTooLong);
-                    return;
-                }
-                
-                string videoId = videoData.VideoId;
-                
-                Database.Current.Mutex.WaitOne();
-                LinksSchema.Entry[] existingVideoIdEntries = await Database.Current.LinksSchema.GetEntriesForVideoId(videoData.VideoId ?? string.Empty);
-                Database.Current.Mutex.ReleaseMutex();
-
-                if (existingVideoIdEntries.Length > 0)
-                {
-                    if (existingVideoIdEntries.Any(e => e.UserId == queueEntry.UserId))
-                    {
-                        await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoAlreadyDownloaded);
-                        return;
-                    }
-                    
-                    LinksSchema.Entry existingEntry = existingVideoIdEntries[0];
-                    string prevFilePath = Helpers.GetVideoDiskFilePath(existingEntry.UserId, videoId);
-                    string newFilePath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
-                    File.Copy(prevFilePath, newFilePath);
-                    
-                    await DoDownloadSuccess(queueEntry, videoData);
-                    return;
-                }
-                
-                Database.Current.Mutex.WaitOne();
-                await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
-                Database.Current.Mutex.ReleaseMutex();
-                
-                Downloader.VideoDownloadResult result = await Downloader.RunDownload(queueEntry.Url, m_progress, m_output, cancellationToken:stoppingToken);
-                if (!result.Result.Success)
-                {
-                    await DoDownloadFail(queueEntry, videoData, result.Result.FailValue);
-                    return;
-                }
-
-                Database.Current.Mutex.WaitOne();
-                await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Processing, queueEntry.UserId, queueEntry.Name);
-                Database.Current.Mutex.ReleaseMutex();
-
-                string path = result.Path;
-                long bytes = new FileInfo(path).Length;
-                ByteSize size = ByteSize.FromBytes(bytes);
-                float tolerance = Config.Current.TargetProcessingTolerance;
-                int targetSize = Config.Current.TargetProcessingSize;
-                if (size.MegaBytes > targetSize * (1 + tolerance))
-                {
-                    // Remove auto square brackets that yt-dlp places on
-                    string tempPath = path.Replace("[", string.Empty).Replace("]", string.Empty);
-                    File.Move(path, tempPath);
-                    path = tempPath;
-                    
-                    string outputPath = path.Replace(".mp4", "-processed.mp4");
-                    Result<ProcessingFailReason> processingResult = await RunProcessing(path, outputPath);
-                    if (processingResult.Success)
-                    {
-                        if (File.Exists(outputPath))
-                        {
-                            File.Delete(path);
-                            path = outputPath;
-                        }
-                    }
-                    else
-                    {
-                        File.Delete(outputPath);
-                    }
-                }
-                
-                string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
-                File.Move(path, moveToPath);
-
-                Database.Current.Mutex.WaitOne();
-                await Database.Current.LinkMetadataSchema.AddEntry(new LinkMetadataSchema.Entry
-                {
-                    VideoId = videoId,
-                    VideoTitle = videoData.Data?.Title ?? string.Empty,
-                    VideoAuthor = videoData.Data?.Channel ?? string.Empty,
-                    OriginalUrl = queueEntry.Url,
-                    Duration = videoData.Data?.Duration ?? 0
-                });
-                Database.Current.Mutex.ReleaseMutex();
-                
-                await DoDownloadSuccess(queueEntry, videoData);
-            }
-            catch (Exception e)
-            {
-                m_logger.LogError(e, "Error while running video download!");
-            }
-        }, stoppingToken);
-        
-    }
-
-    private enum ProcessingFailReason
-    {
-        None,
-        NoProcess,
-        ProcessFail,
-    }
-    
-    private async ValueTask<Result<ProcessingFailReason>> RunProcessing(string path, string outputPath)
-    {
-        int errorLevel;
-        ProcessStartInfo processInfo;
-        Process? process;
-
-        var arguments = new StringBuilder();
-        arguments.Append("-ExecutionPolicy Bypass ");
-        arguments.Append($"-File \"{Config.Current.ProcessingScriptPath}\" ");
-        arguments.Append(string.Format(Config.Current.ProcessingScriptArguments, path, outputPath));
-
-        processInfo = new ProcessStartInfo("powershell.exe", arguments.ToString())
-        {
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-        };
-        
-        process = Process.Start(processInfo);
-        if (process == null)
-        {
-            return Result.MakeFail(ProcessingFailReason.NoProcess);
-        }
-
-        await Task.Run(() =>
-        {
-            process.WaitForExit();
-        });
-
-        errorLevel = process.ExitCode;
-        process.Close();
-
-        if (errorLevel != 0)
-        {
-            return Result.MakeFail(ProcessingFailReason.ProcessFail);
-        }
-        
-        return Result.MakeSuccess<ProcessingFailReason>();
-    }
+     {
+         while (!stoppingToken.IsCancellationRequested)
+         {
+             try
+             {
+                 Database.Current.Mutex.WaitOne();
+                 QueueSchema.Entry? entry;
+                 try
+                 {
+                     entry = await Database.Current.QueueSchema.GetFirstEntry();
+                 }
+                 finally
+                 {
+                     Database.Current.Mutex.ReleaseMutex();
+                 }
+ 
+                 if (entry != null)
+                 {
+                     switch (entry.Value.Status)
+                     {
+                         case QueueStatus.Queued:
+                         {
+                             // Start video download
+                             m_progress = new VideoDownloadProgress();
+                             m_output = new VideoDownloadOutput($@"{Config.Current.DownloadOutputPath}\{entry.Value.UserId}-{entry.Value.MessageId}.txt");
+                             await TryRunDownload(entry.Value, stoppingToken);
+                             break;
+                         }
+                         case QueueStatus.Downloading:
+                         {
+                             if (m_progress != null)
+                             {
+                                 StringBuilder progressString = new();
+                                 progressString.Append($"{(m_progress.Progress * 100):0.#}%");
+                                 if (!string.IsNullOrEmpty(m_progress.ETA))
+                                 {
+                                     progressString.Append($" - ({m_progress.ETA})");
+                                 }
+ 
+                                 Database.Current.Mutex.WaitOne();
+                                 try
+                                 {
+                                     await Database.Current.QueueSchema.SetQueueProgress(entry.Value.UserId,
+                                         entry.Value.Name,
+                                         progressString.ToString());
+                                 }
+                                 finally
+                                 {
+                                     Database.Current.Mutex.ReleaseMutex();
+                                 }
+                             }
+ 
+                             break;
+                         }
+                     }
+                 }
+             }
+             catch (Exception ex)
+             {
+                 m_logger.LogError(ex, "Error while running Queue Background Task!");
+             }
+             
+             await Task.Delay(1000, stoppingToken);
+         }
+     }
+ 
+     private static async Task DoDownloadFail(QueueSchema.Entry queueEntry, VideoDataResult? videoData, DownloadFailReason failReason)
+     {
+         Database.Current.Mutex.WaitOne();
+         await Database.Current.QueueSchema.RemoveFirstQueueEntry();
+         Database.Current.Mutex.ReleaseMutex();
+         
+         AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateFail(queueEntry, videoData?.Data, failReason, []));
+     }
+ 
+     private static async Task DoDownloadSuccess(QueueSchema.Entry queueEntry, VideoDataResult videoData)
+     {
+         Database.Current.Mutex.WaitOne();
+         
+         await Database.Current.QueueSchema.RemoveFirstQueueEntry();
+         await Database.Current.LinksSchema.AddEntry(new LinksSchema.Entry
+         {
+             UserId = queueEntry.UserId,
+             Name = queueEntry.Name,
+             VideoId = videoData.VideoId ?? string.Empty,
+             MessageId = queueEntry.MessageId,
+             DeleteAfter = queueEntry.Persistent
+                 ? DateTime.MaxValue
+                 : DateTime.Now + TimeSpan.FromDays(Constants.ExpirationDays)
+         });
+         
+         Database.Current.Mutex.ReleaseMutex();
+         
+         AsyncQueues.DownloadResults.Enqueue(DownloadResult.CreateSuccess(queueEntry, videoData.Data));
+     }
+     
+     private async Task TryRunDownload(QueueSchema.Entry queueEntry, CancellationToken stoppingToken)
+     {
+         Database.Current.Mutex.WaitOne();
+         await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Fetching, queueEntry.UserId, queueEntry.Name);
+         Database.Current.Mutex.ReleaseMutex();
+         
+         Directory.CreateDirectory(Helpers.GetVideoDiskFolderPathForUser(queueEntry.UserId));
+         
+         _ = Task.Run(async () =>
+         {
+             try
+             {
+                 VideoDataResult videoData = await Downloader.RunVideoDataFetchForURL(queueEntry.Url, m_output, stoppingToken);
+ 
+                 if (!videoData.Success || videoData.VideoId == null || videoData.Data == null)
+                 {
+                     await DoDownloadFail(queueEntry, null, DownloadFailReason.VideoFetchError);
+                     return;
+                 }
+ 
+                 if (videoData.Data.Duration >= Constants.MaxVideoDurationInSeconds)
+                 {
+                     await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoTooLong);
+                     return;
+                 }
+                 
+                 string videoId = videoData.VideoId;
+                 
+                 Database.Current.Mutex.WaitOne();
+                 LinksSchema.Entry[] existingVideoIdEntries = await Database.Current.LinksSchema.GetEntriesForVideoId(videoData.VideoId ?? string.Empty);
+                 Database.Current.Mutex.ReleaseMutex();
+ 
+                 if (existingVideoIdEntries.Length > 0)
+                 {
+                     if (existingVideoIdEntries.Any(e => e.UserId == queueEntry.UserId))
+                     {
+                         await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoAlreadyDownloaded);
+                         return;
+                     }
+                     
+                     LinksSchema.Entry existingEntry = existingVideoIdEntries[0];
+                     string prevFilePath = Helpers.GetVideoDiskFilePath(existingEntry.UserId, videoId);
+                     string newFilePath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
+                     File.Copy(prevFilePath, newFilePath);
+                     
+                     await DoDownloadSuccess(queueEntry, videoData);
+                     return;
+                 }
+                 
+                 Database.Current.Mutex.WaitOne();
+                 await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Downloading, queueEntry.UserId, queueEntry.Name);
+                 Database.Current.Mutex.ReleaseMutex();
+                 
+                 Downloader.VideoDownloadResult result = await Downloader.RunDownload(queueEntry.Url, false, m_progress, m_output, cancellationToken:stoppingToken);
+                 if (!result.Result.Success)
+                 {
+                     await DoDownloadFail(queueEntry, videoData, result.Result.FailValue);
+                     return;
+                 }
+ 
+                 Database.Current.Mutex.WaitOne();
+                 await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Processing, queueEntry.UserId, queueEntry.Name);
+                 Database.Current.Mutex.ReleaseMutex();
+ 
+                 string path = result.Path;
+                 long bytes = new FileInfo(path).Length;
+                 ByteSize size = ByteSize.FromBytes(bytes);
+                 float tolerance = Config.Current.TargetProcessingTolerance;
+                 int targetSize = Config.Current.TargetProcessingSize;
+                 if (size.MegaBytes > targetSize * (1 + tolerance))
+                 {
+                     // Remove auto square brackets that yt-dlp places on
+                     string tempPath = path.Replace("[", string.Empty).Replace("]", string.Empty);
+                     File.Move(path, tempPath);
+                     path = tempPath;
+                     
+                     string outputPath = path.Replace(".mp4", "-processed.mp4");
+                     Result<ProcessingFailReason> processingResult = await RunProcessing(path, outputPath);
+                     if (processingResult.Success)
+                     {
+                         if (File.Exists(outputPath))
+                         {
+                             File.Delete(path);
+                             path = outputPath;
+                         }
+                     }
+                     else
+                     {
+                         File.Delete(outputPath);
+                     }
+                 }
+                 
+                 string moveToPath = Helpers.GetVideoDiskFilePath(queueEntry.UserId, videoId);
+                 File.Move(path, moveToPath);
+ 
+                 Database.Current.Mutex.WaitOne();
+                 await Database.Current.LinkMetadataSchema.AddEntry(new LinkMetadataSchema.Entry
+                 {
+                     VideoId = videoId,
+                     VideoTitle = videoData.Data?.Title ?? string.Empty,
+                     VideoAuthor = videoData.Data?.Channel ?? string.Empty,
+                     OriginalUrl = queueEntry.Url,
+                     Duration = videoData.Data?.Duration ?? 0
+                 });
+                 Database.Current.Mutex.ReleaseMutex();
+                 
+                 await DoDownloadSuccess(queueEntry, videoData);
+             }
+             catch (Exception e)
+             {
+                 m_logger.LogError(e, "Error while running video download!");
+             }
+         }, stoppingToken);
+         
+     }
+ 
+     private enum ProcessingFailReason
+     {
+         None,
+         NoProcess,
+         ProcessFail,
+     }
+     
+     private async ValueTask<Result<ProcessingFailReason>> RunProcessing(string path, string outputPath)
+     {
+         int errorLevel;
+         ProcessStartInfo processInfo;
+         Process? process;
+ 
+         var arguments = new StringBuilder();
+         arguments.Append("-ExecutionPolicy Bypass ");
+         arguments.Append($"-File \"{Config.Current.ProcessingScriptPath}\" ");
+         arguments.Append(string.Format(Config.Current.ProcessingScriptArguments, path, outputPath));
+ 
+         processInfo = new ProcessStartInfo("powershell.exe", arguments.ToString())
+         {
+             CreateNoWindow = true,
+             UseShellExecute = false,
+             RedirectStandardOutput = true,
+         };
+         
+         process = Process.Start(processInfo);
+         if (process == null)
+         {
+             return Result.MakeFail(ProcessingFailReason.NoProcess);
+         }
+ 
+         await Task.Run(() =>
+         {
+             process.WaitForExit();
+         });
+ 
+         errorLevel = process.ExitCode;
+         process.Close();
+ 
+         if (errorLevel != 0)
+         {
+             return Result.MakeFail(ProcessingFailReason.ProcessFail);
+         }
+         
+         return Result.MakeSuccess<ProcessingFailReason>();
+     }
 }

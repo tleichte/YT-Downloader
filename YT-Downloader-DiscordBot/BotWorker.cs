@@ -24,12 +24,15 @@ public class BotWorker : BackgroundService
         await m_client.ConnectAsync();
 
         new QueueDownloaderBackgroundTask().Start(m_logger, stoppingToken);
+        new MP3QueueDownloaderBackgroundTask().Start(m_logger, stoppingToken);
         new DeleteExpiredLinksBackgroundTask().Start(m_logger, stoppingToken);
         
         while (!stoppingToken.IsCancellationRequested)
         {
             await BotHelpers.TryUpdateQueueMessage(m_client);
+            await BotHelpers.TryUpdateMP3QueueMessage(m_client);
             await BotHelpers.CheckForDownloadResults(m_client);
+            await BotHelpers.CheckForMP3DownloadResults(m_client);
             await BotHelpers.CheckForRemoveMessages(m_client);
             
             await Task.Delay(3000, stoppingToken); // Update messages max every 3 seconds

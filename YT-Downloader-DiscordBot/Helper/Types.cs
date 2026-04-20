@@ -1,4 +1,6 @@
-﻿namespace YT_Downloader_DiscordBot.Helper;
+﻿using DSharpPlus.Entities;
+
+namespace YT_Downloader_DiscordBot.Helper;
 
 public enum QueueStatus
 {
@@ -48,4 +50,19 @@ public struct Result<TFail> where TFail : struct
     {
         return result.Success;
     }
+}
+
+public enum ExpirationPolicy
+{
+    Standard,
+    Never
+}
+
+public struct AddToQueueParameters
+{
+    public string Name;
+    public string URL;
+    public bool Persistent;
+    public DiscordUser User;
+    
 }

@@ -37,6 +37,21 @@ public class DeleteExpiredLinksBackgroundTask
                 });
             }
             
+            Database.Current.Mutex.WaitOne();
+            MP3LinksSchema.Entry[] expiredMP3Links = await Database.Current.MP3LinksSchema.GetExpiredLinks();
+            Database.Current.Mutex.ReleaseMutex();
+            
+            foreach(MP3LinksSchema.Entry expiredLink in expiredMP3Links)
+            {
+                await ActionsHelper.DeleteMP3Link(expiredLink);
+                
+                AsyncQueues.RemoveMessageQueue.Enqueue(new RemoveMessagePayload
+                {
+                    UserId = expiredLink.UserId,
+                    MessageId = expiredLink.MessageId,
+                });
+            }
+            
             await Task.Delay(30000, stoppingToken);
         }
     }

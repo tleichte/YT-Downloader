@@ -41,6 +41,38 @@ public struct DownloadResult
     };
 }
 
+public struct MP3DownloadResult
+{
+    public ulong UserId;
+    public string OriginalUrl;
+    public ulong MessageId;
+    public string? VideoId;
+
+    public Result<DownloadFailReason> Result;
+    public string[] ErrorMessages;
+
+    public static MP3DownloadResult CreateSuccess(MP3QueueSchema.Entry entry, VideoData? videoData) => new()
+    {
+        UserId = entry.UserId,
+        OriginalUrl = entry.Url,
+        MessageId = entry.MessageId,
+        VideoId = videoData != null ? Downloader.GetVideoId(videoData) : null,
+        Result = Helper.Result.MakeSuccess<DownloadFailReason>(),
+        ErrorMessages = []
+    };
+    
+    
+    public static MP3DownloadResult CreateFail(MP3QueueSchema.Entry entry, VideoData? videoData, DownloadFailReason failReason, string[] errorMessages) => new()
+    {
+        UserId = entry.UserId,
+        OriginalUrl = entry.Url,
+        MessageId = entry.MessageId,
+        VideoId = videoData != null ? Downloader.GetVideoId(videoData) : null,
+        Result = Helper.Result.MakeFail(failReason),
+        ErrorMessages = errorMessages
+    };
+}
+
 public class VideoDataResult
 {
     public bool Success { get; set; }
@@ -164,7 +196,7 @@ public class Downloader
         }
     }
     
-    public static async ValueTask<VideoDownloadResult> RunDownload(string url, VideoDownloadProgress progress, VideoDownloadOutput output, CancellationToken cancellationToken)
+    public static async ValueTask<VideoDownloadResult> RunDownload(string url, bool isAudio, VideoDownloadProgress progress, VideoDownloadOutput output, CancellationToken cancellationToken)
     {
         var ytDl = new YoutubeDL
         {
@@ -175,13 +207,26 @@ public class Downloader
         int runCount = 0;
         while (++runCount <= MAX_TRIES)
         {
-            var options = new OptionSet()
+            OptionSet options;
+            if (isAudio)
             {
-                NoContinue = true,
-                RestrictFilenames = true,
-                RecodeVideo = VideoRecodeFormat.Mp4,
-                Format = FormatString,
-            };
+                options = new OptionSet()
+                {
+                    NoContinue = true,
+                    RestrictFilenames = true,
+                    Format = FormatString,
+                };
+            }
+            else
+            {
+                options = new OptionSet()
+                {
+                    NoContinue = true,
+                    RestrictFilenames = true,
+                    RecodeVideo = VideoRecodeFormat.Mp4,
+                    Format = FormatString,
+                };
+            }
 
             var usedCookies = false;
             if (Config.Current.ShouldAlwaysUseCookies || runCount > 1)
@@ -190,7 +235,7 @@ public class Downloader
                 usedCookies = true;
             }
             
-            InnerVideoDownloadResult result = await RunDownloadInner(ytDl, url, options, progress, output, cancellationToken);
+            InnerVideoDownloadResult result = await RunDownloadInner(ytDl, url, isAudio, options, progress, output, cancellationToken);
             
             if (result.Result.Success)
             {
@@ -208,9 +253,17 @@ public class Downloader
     }
 
 
-    private static async ValueTask<InnerVideoDownloadResult> RunDownloadInner(YoutubeDL ytDl, string url, OptionSet optionSet, VideoDownloadProgress progress, VideoDownloadOutput output, CancellationToken cancellationToken)
+    private static async ValueTask<InnerVideoDownloadResult> RunDownloadInner(YoutubeDL ytDl, string url, bool isAudio, OptionSet optionSet, VideoDownloadProgress progress, VideoDownloadOutput output, CancellationToken cancellationToken)
     {
-        RunResult<string>? res = await ytDl.RunVideoDownload(url,overrideOptions:optionSet, progress:progress, output:output, ct: cancellationToken);
+        RunResult<string>? res;
+        if (isAudio)
+        {
+            res = await ytDl.RunAudioDownload(url, format:AudioConversionFormat.Mp3, overrideOptions:optionSet, progress:progress, output:output, ct: cancellationToken);
+        }
+        else
+        {
+            res = await ytDl.RunVideoDownload(url,overrideOptions:optionSet, progress:progress, output:output, ct: cancellationToken);
+        }
         if (res.Success)
         {
             return InnerVideoDownloadResult.MakeSuccess(res.Data);
@@ -236,5 +289,4 @@ public class Downloader
 
         return InnerVideoDownloadResult.MakeFail(DownloadFailReason.VideoDownloadError, errorOutput);
     }
-    
 }

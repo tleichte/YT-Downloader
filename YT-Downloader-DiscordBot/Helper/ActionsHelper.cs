@@ -20,4 +20,20 @@ public static class ActionsHelper
             Console.WriteLine(e);
         }
     }
+    
+    public static async Task DeleteMP3Link(MP3LinksSchema.Entry entry)
+    {
+        Database.Current.Mutex.WaitOne();
+        await Database.Current.MP3LinksSchema.RemoveLink(entry.UserId, entry.VideoId);
+        Database.Current.Mutex.ReleaseMutex();
+
+        try
+        {
+            File.Delete(Helpers.GetMP3DiskFilePath(entry.UserId, entry.VideoId));
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
 }
