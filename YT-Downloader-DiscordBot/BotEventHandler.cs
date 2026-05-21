@@ -8,7 +8,10 @@ using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot;
 
-public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEventHandler<ModalSubmittedEventArgs>
+public class BotEventHandler : 
+    IEventHandler<MessageReactionAddedEventArgs>,
+    IEventHandler<ModalSubmittedEventArgs>,
+    IEventHandler<ComponentInteractionCreatedEventArgs>
 {
     public async Task HandleEventAsync(DiscordClient sender, MessageReactionAddedEventArgs eventArgs)
     {
@@ -125,5 +128,17 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         bool persistent = expiresModalValue?.Count == 1 && expiresModalValue[0] == Constants.ModalExpireOptionNeverId;
 
         await BotHelpers.AddToQueue(url, name, persistent, eventArgs.Interaction.User);
+    }
+
+    public async Task HandleEventAsync(DiscordClient sender, ComponentInteractionCreatedEventArgs eventArgs)
+    {
+        if (eventArgs.Id == Constants.FindResultsPrevButtonId)
+        {
+            await BotHelpers.AttemptGoPreviousFindResultPage(eventArgs);
+        }
+        else if (eventArgs.Id == Constants.FindResultsNextButtonId)
+        {
+            await BotHelpers.AttemptGoNextFindResultPage(eventArgs);
+        }
     }
 }

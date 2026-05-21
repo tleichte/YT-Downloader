@@ -1,6 +1,7 @@
 ﻿using System.Text;
 using DSharpPlus;
 using DSharpPlus.Entities;
+using DSharpPlus.EventArgs;
 using YT_Downloader_DiscordBot.DB;
 using YT_Downloader_DiscordBot.DB.Schemas;
 
@@ -665,6 +666,125 @@ public static class BotHelpers
             }
         }
     }
+
+    public struct FindResultPage
+    {
+        public bool Success;
+        public string Content;
+        public DiscordButtonComponent[] Buttons;
+
+        public static FindResultPage CreateFailure()
+        {
+            return new FindResultPage { Success = false };
+        }
+    }
     
+    public static async Task<FindResultPage> CreateFindResultPage(DiscordUser user, string name, int page)
+    {
+        Database.Current.Mutex.WaitOne();
+        LinksSchema.Entry[] entries = await Database.Current.LinksSchema.GetEntriesLikeName(user.Id, name);
+        Database.Current.Mutex.ReleaseMutex();
+        
+        if (entries.Length == 0)
+        {
+            return FindResultPage.CreateFailure();
+        }
+        
+        StringBuilder outString = new();
+        outString.AppendLine($"Found the following links matching name _{name}_:");
+
+        int startIndex = page * Constants.FindPageSize;
+        int endIndex = startIndex + Constants.FindPageSize;
+        for (int i = startIndex; i < endIndex; i++)
+        {
+            if (i >= entries.Length)
+            {
+                break;
+            }
+            
+            LinksSchema.Entry entry = entries[i];
+            Uri? jumpLink = await GetJumpLink(user, entry.MessageId);
+            outString.AppendLine($"- {entry.Name}");
+            outString.AppendLine($"  - {jumpLink}");
+        }
+        
+        int totalPages = (int)Math.Ceiling(entries.Length / (double)Constants.FindPageSize);
+        outString.AppendLine($"Page {page+1}/{totalPages}");
+        
+        var prevButton = new DiscordButtonComponent(
+            DiscordButtonStyle.Primary,
+            Constants.FindResultsPrevButtonId,
+            "<-",
+            disabled: page == 0);
+        
+        var nextButton = new DiscordButtonComponent(
+            DiscordButtonStyle.Primary,
+            Constants.FindResultsNextButtonId,
+            "->",
+            disabled: page+1 >= totalPages);
+
+        return new FindResultPage
+        {
+            Success = true,
+            Content = outString.ToString(),
+            Buttons = [prevButton, nextButton]
+        };
+    }
+
+    public static async Task AttemptGoPreviousFindResultPage(ComponentInteractionCreatedEventArgs eventArgs)
+    {
+        string messageContent = eventArgs.Message.Content;
+        if (ExtractResultsPageNumber(messageContent, out int pageNumber))
+        {
+            await AttemptGoFindResultPageInner(eventArgs, pageNumber - 1);
+        }
+    }
     
+    public static async Task AttemptGoNextFindResultPage(ComponentInteractionCreatedEventArgs eventArgs)
+    {
+        string messageContent = eventArgs.Message.Content;
+        if (ExtractResultsPageNumber(messageContent, out int pageNumber))
+        {
+            await AttemptGoFindResultPageInner(eventArgs, pageNumber + 1);
+        }
+    }
+    
+    private static async Task AttemptGoFindResultPageInner(ComponentInteractionCreatedEventArgs eventArgs, int pageNumber)
+    {
+        string name = ExtractFindResultsName(eventArgs.Message.Content);
+
+        BotHelpers.FindResultPage page = await BotHelpers.CreateFindResultPage(eventArgs.User, name, pageNumber);
+
+        if (page.Success)
+        {
+            await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.UpdateMessage,
+                new DiscordInteractionResponseBuilder()
+                    .WithContent(page.Content)
+                    .AddActionRowComponent(page.Buttons));
+        }
+    }
+    
+    private static string ExtractFindResultsName(string messageContent)
+    {
+        string searchString = "matching name _";
+        int nameIndex = messageContent.IndexOf(searchString, StringComparison.InvariantCultureIgnoreCase);
+        string nameString = messageContent.Substring(nameIndex + searchString.Length).Split("_")[0];
+        return nameString;
+    }
+
+    private static bool ExtractResultsPageNumber(string messageContent, out int pageNumber)
+    {
+        string searchString = "Page ";
+        int pageIndex = messageContent.LastIndexOf(searchString, StringComparison.InvariantCultureIgnoreCase);
+        string pageNumberString = messageContent.Substring(pageIndex + searchString.Length).Split("/")[0];
+
+        bool parsed = int.TryParse(pageNumberString, out pageNumber);
+        if (!parsed)
+        {
+            return false;
+        }
+
+        pageNumber -= 1;
+        return true;
+    }
 }

@@ -9,6 +9,9 @@ public static class Constants
     public const string ModalNameId = "name";
     public const string ModalExpiresId = "expires";
     
+    public const string FindResultsPrevButtonId = "find_prev_button";
+    public const string FindResultsNextButtonId = "find_next_button";
+    
     public const string ModalExpireOptionStandardId = "standard";
     public const string ModalExpireOptionNeverId = "never";
 
@@ -22,4 +25,6 @@ public static class Constants
     
     public static readonly DiscordEmoji EmojiToCheck = DiscordEmoji.FromUnicode("❌");
     public static readonly DiscordEmoji SafetyDeleteEmoji = DiscordEmoji.FromUnicode("🆑");
+
+    public const int FindPageSize = 10;
 }

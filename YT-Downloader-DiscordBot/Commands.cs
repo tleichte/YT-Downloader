@@ -79,27 +79,19 @@ public class Commands
     public async Task FindCommand(SlashCommandContext ctx, string name)
     {
         await ctx.DeferResponseAsync(true);
-        
-        Database.Current.Mutex.WaitOne();
-        LinksSchema.Entry[] entries = await Database.Current.LinksSchema.GetEntriesLikeName(ctx.User.Id, name);
-        Database.Current.Mutex.ReleaseMutex();
 
-        if (entries.Length == 0)
+        BotHelpers.FindResultPage page = await BotHelpers.CreateFindResultPage(ctx.User, name, 0);
+        if (!page.Success)
         {
             await ctx.RespondAsync($"No links found matching _{name}_!");
             return;
         }
         
-        StringBuilder outString = new();
-        outString.AppendLine($"Found the following links matching name _{name}_:");
-        foreach (LinksSchema.Entry entry in entries)
-        {
-            Uri? jumpLink = await BotHelpers.GetJumpLink(ctx.User, entry.MessageId);
-            outString.AppendLine($"- {entry.Name}");
-            outString.AppendLine($"  - {jumpLink}");
-        }
-        
-        await ctx.EditResponseAsync(outString.ToString());
+        DiscordMessageBuilder builder = new DiscordMessageBuilder()
+            .WithContent(page.Content)
+            .AddActionRowComponent(page.Buttons);
+            
+        await ctx.EditResponseAsync(builder);
     }
 
     [Command("rename")]
