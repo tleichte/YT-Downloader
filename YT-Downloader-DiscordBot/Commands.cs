@@ -35,7 +35,7 @@ public class Commands
     }
 
     [Command("save_file")]
-    [Description("UNIMPLEMENTED: Saves a file to the media server. Must be a video type. Limited by your Nitro upload maximum.")]
+    [Description("UNIMPLEMENTED: Saves a file. Must be a video type. Limited by your Nitro upload maximum.")]
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM, DiscordInteractionContextType.Guild)]
     public async Task SaveFileCommand(SlashCommandContext ctx, DiscordAttachment attachment, string name, ExpirationPolicy expirationPolicy)
     {
