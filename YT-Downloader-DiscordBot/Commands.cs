@@ -24,18 +24,18 @@ public class Commands
         modalBuilder.AddTextInput(
             new DiscordTextInputComponent(Constants.ModalURLId, placeholder: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "URL",
             "The URL to download the video from. Must be supported by yt-dlp.");
-        modalBuilder.AddTextInput(new DiscordTextInputComponent(Constants.ModalNameId, placeholder:"My Cool Video"), "Name",
-            "The user-defined name for IDing this video. Must be unique.");
+        modalBuilder.AddTextInput(new DiscordTextInputComponent(Constants.ModalNameId, placeholder:"My Cool Video", required: false), "Name",
+            "The optional user-defined name for IDing this video. If used, must be unique.");
         modalBuilder.AddSelectMenu(new DiscordSelectComponent(Constants.ModalExpiresId, "placeholder (you shouldn't see me)", new DiscordSelectComponentOption[]
         {
             new("Standard", Constants.ModalExpireOptionStandardId, isDefault:true),
             new("Never", Constants.ModalExpireOptionNeverId),
-        }, required: true), "Expiration", "When this video should expire. By default videos expire in 2 weeks.");
+        }, required: true), "Expiration", "When this video should expire. By default videos expire in 30 days.");
         await ctx.RespondWithModalAsync(modalBuilder);
     }
 
     [Command("save_file")]
-    [Description("Saves a file to the media server. Must be a video type. Limited by your Nitro upload maximum.")]
+    [Description("UNIMPLEMENTED: Saves a file to the media server. Must be a video type. Limited by your Nitro upload maximum.")]
     [InteractionAllowedContexts(DiscordInteractionContextType.BotDM, DiscordInteractionContextType.Guild)]
     public async Task SaveFileCommand(SlashCommandContext ctx, DiscordAttachment attachment, string name, ExpirationPolicy expirationPolicy)
     {

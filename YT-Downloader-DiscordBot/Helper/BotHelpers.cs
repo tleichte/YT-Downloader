@@ -9,7 +9,7 @@ namespace YT_Downloader_DiscordBot.Helper;
 public static class BotHelpers
 {
 
-    public static async Task AddToQueue(string url, string name, bool persistent, DiscordUser user)
+    public static async Task AddToQueue(string url, string? name, bool persistent, DiscordUser user)
     {
         string preQueueMessage = $"Adding `{url}` to queue...";
         DiscordMessage message = await user.SendMessageAsync(preQueueMessage);
@@ -25,33 +25,42 @@ public static class BotHelpers
         }
         
         ulong userId = user.Id;
+
+        bool nameless = string.IsNullOrWhiteSpace(name);
         
-        // Check if name already exists in queue
-        Database.Current.Mutex.WaitOne();
-        QueueSchema.Entry? nameQueueEntry = await Database.Current.QueueSchema.GetEntryForName(userId, name);
-        Database.Current.Mutex.ReleaseMutex();
-        if (nameQueueEntry != null)
+        if (!nameless)
         {
-            DiscordDmChannel channel = await user.CreateDmChannelAsync();
-            DiscordMessage existingMessage = await channel.GetMessageAsync(nameQueueEntry.Value.MessageId);
-            var response = $"You already have a video queued with the name {name}!\n{existingMessage.JumpLink}";
-            await message.ModifyAsync(response);
-            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
-            return;
+            // Check if name already exists in queue
+            Database.Current.Mutex.WaitOne();
+            QueueSchema.Entry? nameQueueEntry = await Database.Current.QueueSchema.GetEntryForName(userId, name);
+            Database.Current.Mutex.ReleaseMutex();
+            if (nameQueueEntry != null)
+            {
+                DiscordDmChannel channel = await user.CreateDmChannelAsync();
+                DiscordMessage existingMessage = await channel.GetMessageAsync(nameQueueEntry.Value.MessageId);
+                var response = $"You already have a video queued with the name {name}!\n{existingMessage.JumpLink}";
+                await message.ModifyAsync(response);
+                RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+                return;
+            }
+            
+            // Check if name already exists in links
+            Database.Current.Mutex.WaitOne();
+            LinksSchema.Entry? nameLinksEntry = await Database.Current.LinksSchema.GetEntryForName(userId, name);
+            Database.Current.Mutex.ReleaseMutex();
+            if (nameLinksEntry != null)
+            {
+                DiscordDmChannel channel = await user.CreateDmChannelAsync();
+                DiscordMessage existingMessage = await channel.GetMessageAsync(nameLinksEntry.Value.MessageId);
+                var response = $"You already have a video with the name {name}!\n{existingMessage.JumpLink}";
+                await message.ModifyAsync(response);
+                RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
+                return;
+            }
         }
-        
-        // Check if name already exists in links
-        Database.Current.Mutex.WaitOne();
-        LinksSchema.Entry? nameLinksEntry = await Database.Current.LinksSchema.GetEntryForName(userId, name);
-        Database.Current.Mutex.ReleaseMutex();
-        if (nameLinksEntry != null)
+        else
         {
-            DiscordDmChannel channel = await user.CreateDmChannelAsync();
-            DiscordMessage existingMessage = await channel.GetMessageAsync(nameLinksEntry.Value.MessageId);
-            var response = $"You already have a video with the name {name}!\n{existingMessage.JumpLink}";
-            await message.ModifyAsync(response);
-            RunDeleteAfter(user.Id, message.Id, Constants.ErrorMessageTimeoutMinutes);
-            return;
+            name = new Random().NextInt64().ToString();
         }
 
         Database.Current.Mutex.WaitOne();
@@ -59,7 +68,8 @@ public static class BotHelpers
         await Database.Current.QueueSchema.AddEntry(new QueueSchema.Entry
         {
             UserId = userId,
-            Name = name,
+            Name = name ?? "",
+            Nameless = nameless,
             Url = url,
             MessageId = message.Id,
             Persistent = persistent,
@@ -70,8 +80,11 @@ public static class BotHelpers
         Database.Current.Mutex.ReleaseMutex();
         
         var builder = new StringBuilder();
-        
-        builder.AppendLine($"## {name}");
+
+        if (!nameless)
+        {
+            builder.AppendLine($"## {name}");
+        }
         builder.AppendLine("**Original:**");
         builder.AppendLine($"`{url}`");
         builder.AppendLine();
@@ -166,7 +179,10 @@ public static class BotHelpers
     {
         var builder = new StringBuilder();
 
-        builder.AppendLine($"## {entry.Name}");
+        if (!entry.Nameless)
+        {
+            builder.AppendLine($"## {entry.Name}");
+        }
 
         builder.AppendLine($"**Original:**");
         builder.AppendLine($"`{entry.Url}`");

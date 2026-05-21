@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using YT_Downloader_DiscordBot.BackgroundTasks;
+using YT_Downloader_DiscordBot.DB;
 using YT_Downloader_DiscordBot.Helper;
 
 namespace YT_Downloader_DiscordBot;
@@ -21,8 +22,14 @@ public class BotWorker : BackgroundService
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        bool databaseSuccess = await Database.Initialize(m_logger);
+        if (!databaseSuccess)
+        {
+            return;
+        }
+   
         await m_client.ConnectAsync();
-
+        
         new QueueDownloaderBackgroundTask().Start(m_logger, stoppingToken);
         new MP3QueueDownloaderBackgroundTask().Start(m_logger, stoppingToken);
         new DeleteExpiredLinksBackgroundTask().Start(m_logger, stoppingToken);

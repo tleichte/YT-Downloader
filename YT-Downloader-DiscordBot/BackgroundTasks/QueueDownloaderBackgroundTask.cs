@@ -25,7 +25,10 @@ public class QueueDownloaderBackgroundTask
     }
     
     private async Task Run(CancellationToken stoppingToken)
-     {
+    {
+         // On first startup, we need to make sure any in progress ones are reset
+         await ResetFirstEntry();
+
          while (!stoppingToken.IsCancellationRequested)
          {
              try
@@ -40,7 +43,7 @@ public class QueueDownloaderBackgroundTask
                  {
                      Database.Current.Mutex.ReleaseMutex();
                  }
- 
+
                  if (entry != null)
                  {
                      switch (entry.Value.Status)
@@ -49,7 +52,8 @@ public class QueueDownloaderBackgroundTask
                          {
                              // Start video download
                              m_progress = new VideoDownloadProgress();
-                             m_output = new VideoDownloadOutput($@"{Config.Current.DownloadOutputPath}\{entry.Value.UserId}-{entry.Value.MessageId}.txt");
+                             m_output = new VideoDownloadOutput(
+                                 $@"{Config.Current.DownloadOutputPath}\{entry.Value.UserId}-{entry.Value.MessageId}.txt");
                              await TryRunDownload(entry.Value, stoppingToken);
                              break;
                          }
@@ -63,7 +67,7 @@ public class QueueDownloaderBackgroundTask
                                  {
                                      progressString.Append($" - ({m_progress.ETA})");
                                  }
- 
+
                                  Database.Current.Mutex.WaitOne();
                                  try
                                  {
@@ -76,7 +80,7 @@ public class QueueDownloaderBackgroundTask
                                      Database.Current.Mutex.ReleaseMutex();
                                  }
                              }
- 
+
                              break;
                          }
                      }
@@ -86,11 +90,23 @@ public class QueueDownloaderBackgroundTask
              {
                  m_logger.LogError(ex, "Error while running Queue Background Task!");
              }
-             
+
              await Task.Delay(1000, stoppingToken);
          }
-     }
- 
+    }
+
+    private async Task ResetFirstEntry()
+    {
+        Database.Current.Mutex.WaitOne();
+        QueueSchema.Entry? firstEntry = await Database.Current.QueueSchema.GetFirstEntry();
+        if (firstEntry != null)
+        {
+            await Database.Current.QueueSchema.SetQueueStatus(QueueStatus.Queued, firstEntry.Value.UserId,
+                firstEntry.Value.Name);
+        }
+        Database.Current.Mutex.ReleaseMutex();
+    }
+    
      private static async Task DoDownloadFail(QueueSchema.Entry queueEntry, VideoDataResult? videoData, DownloadFailReason failReason)
      {
          Database.Current.Mutex.WaitOne();
@@ -145,6 +161,28 @@ public class QueueDownloaderBackgroundTask
                  {
                      await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoTooLong);
                      return;
+                 }
+
+                 if (queueEntry.Nameless)
+                 {
+                     string newEntry = !string.IsNullOrWhiteSpace(videoData.Data.Title) ? videoData.Data.Title : videoData.VideoId;
+
+                     Database.Current.Mutex.WaitOne();
+                     bool hasExistingEntry =
+                         await Database.Current.QueueSchema.GetEntryForName(queueEntry.UserId, newEntry) != null;
+                     Database.Current.Mutex.ReleaseMutex();
+                         
+                     if (hasExistingEntry)
+                     {
+                         await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoAlreadyDownloaded);
+                         return;
+                     }
+                     
+                     Database.Current.Mutex.WaitOne();
+                     await Database.Current.QueueSchema.ConvertNameless(queueEntry.UserId, queueEntry.Name, newEntry);
+                     Database.Current.Mutex.ReleaseMutex();
+                     
+                     queueEntry.Name = newEntry;
                  }
                  
                  string videoId = videoData.VideoId;

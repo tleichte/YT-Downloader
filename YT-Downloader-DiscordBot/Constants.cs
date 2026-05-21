@@ -12,7 +12,7 @@ public static class Constants
     public const string ModalExpireOptionStandardId = "standard";
     public const string ModalExpireOptionNeverId = "never";
 
-    public const int ExpirationDays = 14;
+    public const int ExpirationDays = 30;
     public const int MP3ExpirationDays = 1;
     
     public const int ErrorMessageTimeoutMinutes = 1;

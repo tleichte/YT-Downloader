@@ -18,6 +18,7 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         public bool Persistent;
         public QueueStatus Status;
         public string Progress;
+        public bool Nameless;
     }
 
     public override string CreateTableCommand => """
@@ -29,15 +30,16 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
                                                      persistent INTEGER,
                                                      status INTEGER,
                                                      progress TEXT,
+                                                     nameless INTEGER,
                                                      PRIMARY KEY (user_id, name)
                                                  )
                                                  """;
 
     protected override string InsertCommand => """
                                                INSERT INTO Queue 
-                                                    (user_id, name, url, message_id, persistent, status, progress)
+                                                    (user_id, name, url, message_id, persistent, status, progress, nameless)
                                                values 
-                                                   ($user_id, $name, $url, $message_id, $persistent, $status, $progress)
+                                                   ($user_id, $name, $url, $message_id, $persistent, $status, $progress, $nameless)
                                                """;
 
     protected override void AddInsertParameters(SqliteParameterCollection parameters, Entry entry)
@@ -49,17 +51,19 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
         parameters.AddWithValue("$persistent", entry.Persistent);
         parameters.AddWithValue("$status", (int)entry.Status);
         parameters.AddWithValue("$progress", entry.Progress);
+        parameters.AddWithValue("$nameless", entry.Nameless);
     }
 
     protected override Entry ParseEntry(SqliteDataReader reader) => new()
     {
         UserId = reader.GetULong(reader.GetOrdinal("user_id")),
-        Url = reader.GetString(reader.GetOrdinal("url")),
         Name = reader.GetString(reader.GetOrdinal("name")),
+        Url = reader.GetString(reader.GetOrdinal("url")),
         MessageId = reader.GetULong(reader.GetOrdinal("message_id")),
         Persistent = reader.GetBoolean(reader.GetOrdinal("persistent")),
         Status = (QueueStatus)reader.GetInt32(reader.GetOrdinal("status")),
         Progress =  reader.GetString(reader.GetOrdinal("progress")),
+        Nameless = reader.GetBoolean(reader.GetOrdinal("nameless")),
     };
 
     public async ValueTask<Entry?> GetEntryForName(ulong userId, string name)
@@ -79,6 +83,25 @@ public class QueueSchema : DatabaseSchema<QueueSchema.Entry>
                 DatabaseHelpers.AddULong(parameters, "$user_id", userId);
                 parameters.AddWithValue("$name", name);
             });
+    }
+
+    public async Task ConvertNameless(ulong userId, string oldName, string newName)
+    {
+        const string COMMAND = """
+                               UPDATE Queue
+                               SET nameless = $nameless,
+                                   name = $new_name
+                               WHERE 
+                                   user_id = $user_id AND
+                                   name = $old_name
+                               """;
+        await Execute(COMMAND, parameters =>
+        {
+            parameters.AddULong("$user_id", userId);
+            parameters.AddWithValue("$old_name", oldName);
+            parameters.AddWithValue("$new_name", newName);
+            parameters.AddWithValue("$nameless", false);
+        });
     }
 
     public async ValueTask<Entry?> GetFirstEntry()

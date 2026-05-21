@@ -119,9 +119,9 @@ public class BotEventHandler : IEventHandler<MessageReactionAddedEventArgs>, IEv
         {
             return;
         }
+        string? name = nameModalValue;
         
         string url = urlModalValue ?? "";
-        string name = nameModalValue ?? "";
         bool persistent = expiresModalValue?.Count == 1 && expiresModalValue[0] == Constants.ModalExpireOptionNeverId;
 
         await BotHelpers.AddToQueue(url, name, persistent, eventArgs.Interaction.User);
