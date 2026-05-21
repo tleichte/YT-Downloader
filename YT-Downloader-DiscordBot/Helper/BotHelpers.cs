@@ -751,16 +751,23 @@ public static class BotHelpers
     
     private static async Task AttemptGoFindResultPageInner(ComponentInteractionCreatedEventArgs eventArgs, int pageNumber)
     {
+        await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.DeferredMessageUpdate);
+        
+        DiscordWebhookBuilder deferredBuilder = new DiscordWebhookBuilder();
+        deferredBuilder.WithContent("Grabbing results...");
+        await eventArgs.Interaction.EditOriginalResponseAsync(deferredBuilder);
+        
         string name = ExtractFindResultsName(eventArgs.Message.Content);
 
-        BotHelpers.FindResultPage page = await BotHelpers.CreateFindResultPage(eventArgs.User, name, pageNumber);
-
+        FindResultPage page = await CreateFindResultPage(eventArgs.User, name, pageNumber);
+        
         if (page.Success)
         {
-            await eventArgs.Interaction.CreateResponseAsync(DiscordInteractionResponseType.UpdateMessage,
-                new DiscordInteractionResponseBuilder()
-                    .WithContent(page.Content)
-                    .AddActionRowComponent(page.Buttons));
+            DiscordWebhookBuilder builder = new DiscordWebhookBuilder();
+            builder.WithContent(page.Content);
+            builder.AddActionRowComponent(page.Buttons);
+            
+            await eventArgs.Interaction.EditOriginalResponseAsync(builder);
         }
     }
     
