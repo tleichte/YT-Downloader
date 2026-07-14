@@ -97,7 +97,7 @@ public class VideoDataResult
 
 public class Downloader
 {
-    private const string FormatString = "best[height<=1080]";
+    private const string FormatString = "res:1080";
 
     public static async ValueTask<VideoDataResult> RunVideoDataFetchForURL(string url, VideoDownloadOutput output, CancellationToken cancellationToken)
     {
@@ -214,7 +214,7 @@ public class Downloader
                 {
                     NoContinue = true,
                     RestrictFilenames = true,
-                    Format = FormatString,
+                    FormatSort = FormatString,
                 };
             }
             else
@@ -223,8 +223,8 @@ public class Downloader
                 {
                     NoContinue = true,
                     RestrictFilenames = true,
-                    RecodeVideo = VideoRecodeFormat.Mp4,
-                    Format = FormatString,
+                    PresetAlias = "mp4",
+                    FormatSort = FormatString,
                 };
             }
 
