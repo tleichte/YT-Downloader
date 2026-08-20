@@ -297,6 +297,28 @@ public static class BotHelpers
                 }
                 break;
             }
+            case DownloadFailReason.VideoNameTaken:
+            {
+                if (!string.IsNullOrWhiteSpace(result.Name))
+                {
+                    Database.Current.Mutex.WaitOne();
+                    LinksSchema.Entry? entryForName = await Database.Current.LinksSchema.GetEntryForName(result.UserId, result.Name);
+                    Database.Current.Mutex.ReleaseMutex();
+                    if (entryForName != null)
+                    {
+                        Uri? jumpLink = await GetJumpLink(client, result.UserId, entryForName.Value.MessageId);
+                        builder.AppendLine("You already have a video with that name. Please enter a unique custom name or remove the other one.");
+                        builder.AppendLine($"{jumpLink}");
+                        break;
+                    }
+                }
+                builder.AppendLine("Unknown video download error.");
+                foreach (string error in result.ErrorMessages)
+                {
+                    builder.AppendLine($"`{error}`");
+                }
+                break;
+            }
             case DownloadFailReason.VideoDownloadError:
             default:
             {

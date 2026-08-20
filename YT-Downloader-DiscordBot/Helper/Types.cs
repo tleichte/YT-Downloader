@@ -18,6 +18,7 @@ public enum DownloadFailReason
     VideoBotError,
     VideoDownloadError,
     VideoAlreadyDownloaded,
+    VideoNameTaken,
 }
 
 public static class Result

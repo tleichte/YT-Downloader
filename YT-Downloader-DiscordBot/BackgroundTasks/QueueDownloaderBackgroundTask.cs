@@ -169,12 +169,13 @@ public class QueueDownloaderBackgroundTask
 
                      Database.Current.Mutex.WaitOne();
                      bool hasExistingEntry =
-                         await Database.Current.QueueSchema.GetEntryForName(queueEntry.UserId, newEntry) != null;
+                         await Database.Current.LinksSchema.GetEntryForName(queueEntry.UserId, newEntry) != null;
                      Database.Current.Mutex.ReleaseMutex();
                          
                      if (hasExistingEntry)
                      {
-                         await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoAlreadyDownloaded);
+                         queueEntry.Name = newEntry;
+                         await DoDownloadFail(queueEntry, videoData, DownloadFailReason.VideoNameTaken);
                          return;
                      }
                      
